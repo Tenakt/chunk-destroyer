@@ -15,8 +15,6 @@ import net.tenakt.network.ConfigSyncPayload;
 
 public class DestroyConfigScreen extends BaseUIModelScreen<FlowLayout> {
 
-    private ButtonComponent saveButton;
-
     public DestroyConfigScreen() {
         super(FlowLayout.class, DataSource.asset(Identifier.of("chunk-destroyer", "destroy_config")));
     }

@@ -81,7 +81,7 @@ public class ChunkDestroyer implements ModInitializer {
 
                                     PlayerSettings settings = PLAYER_SETTINGS.getOrDefault(player.getUuid(),DEFEAULT_SETTINGS);
 
-                                    int radius = MyModInitializer.CONFIG.destroyRadius();
+                                    int radius = settings.radius();
 
                                     int halfRadius = radius / 2;
 
@@ -91,8 +91,8 @@ public class ChunkDestroyer implements ModInitializer {
                                     int minZ = playerPos.getZ() - halfRadius;
                                     int maxZ = playerPos.getZ() + (radius - halfRadius - 1);
 
-                                    int heightUp = MyModInitializer.CONFIG.heightUp();
-                                    int heightDown = MyModInitializer.CONFIG.heightDown();
+                                    int heightUp = settings.heightUp();
+                                    int heightDown = settings.heightDown();
 
                                     int minY = playerPos.getY() - heightDown;
                                     int maxY = playerPos.getY() + heightUp;
