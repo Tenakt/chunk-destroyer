@@ -10,6 +10,5 @@ public class MyModInitializer implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        MyItem.INSTANCE.register();
     }
 }
