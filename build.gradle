@@ -1,7 +1,7 @@
 plugins {
 	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
-    id "org.jetbrains.kotlin.kapt" version '2.4.10'
+	id 'org.jetbrains.kotlin.jvm' version '2.4.10'
 }
 
 version = project.mod_version
@@ -14,7 +14,6 @@ repositories {
 
 	// Mod Menu
 	maven{ url "https://api.modrinth.com/maven"}
-    mavenCentral()
 }
 
 loom {
@@ -44,7 +43,9 @@ dependencies {
 
 	// Mod Menu
 	modImplementation "maven.modrinth:modmenu:17.0.0"
-    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+
+	// Kotlin
+	modImplementation "net.fabricmc:fabric-language-kotlin:1.13.12+kotlin.2.4.0"
 }
 
 processResources {
@@ -66,8 +67,8 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_17
-	targetCompatibility = JavaVersion.VERSION_17
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 }
 
 jar {
@@ -102,4 +103,9 @@ sourceSets{
 			srcDirs = ['src/main/resources']
 		}
 	}
+}
+
+
+kotlin{
+	jvmToolchain (21)
 }
