@@ -42,7 +42,7 @@ public class DestroyConfigScreen extends BaseUIModelScreen<FlowLayout> {
         }
 
 
-        if (saveButton != null && radiusInput != null) {
+        if (saveButton != null && radiusInput != null && upInput != null && downInput != null) {
             saveButton.onPress(button -> {
                 try {
                     int newRadius = Integer.parseInt(radiusInput.getText());
