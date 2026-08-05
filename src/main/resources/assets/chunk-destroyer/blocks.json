@@ -1,0 +1,48 @@
+[
+  "stone",
+  "dirt",
+  "grass block",
+  "sand",
+  "gravel",
+
+  "andesite",
+  "diorite",
+  "granite",
+
+  "deepslate",
+  "deepslate coal ore",
+  "deepslate iron ore",
+  "deepslate copper ore",
+  "deepslate gold ore",
+  "deepslate diamond ore",
+  "deepslate emerald ore",
+  "deepslate redstone ore",
+  "deepslate lapis ore",
+
+  "oak",
+  "birch",
+  "spruce",
+  "jungle",
+  "acacia",
+  "dark oak",
+
+  "coal ore",
+  "iron ore",
+  "copper ore",
+  "gold ore",
+  "diamond ore",
+  "emerald ore",
+  "redstone ore",
+  "lapis ore",
+
+  "obsidian",
+  "netherrack",
+  "end stone",
+
+  "glass",
+  "brick",
+  "wool",
+  "concrete",
+
+  "[unk]"
+]

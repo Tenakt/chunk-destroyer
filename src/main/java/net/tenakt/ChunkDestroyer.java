@@ -14,7 +14,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
 import net.tenakt.network.ConfigSyncPayload;
 
 import java.util.Map;
@@ -27,21 +26,22 @@ public class ChunkDestroyer implements ModInitializer {
 
     public static final Map<UUID, PlayerSettings> PLAYER_SETTINGS = new ConcurrentHashMap<>();
 
-    public static final PlayerSettings DEFEAULT_SETTINGS = new PlayerSettings(16,384,384);
+    public static final PlayerSettings DEFEAULT_SETTINGS = new PlayerSettings(16, 384, 384);
 
     @Override
     public void onInitialize() {
-        // Регистрируем пакет (как мы делали в прошлый раз)
+        // Регистрируем пакет синхронизации настроек
         PayloadTypeRegistry.playC2S().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
 
         // Принимаем пакет и сохраняем настройки ЛИЧНО для этого игрока
         ServerPlayNetworking.registerGlobalReceiver(ConfigSyncPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 ServerPlayerEntity player = context.player();
-                // Записываем настройки в словарь по UUID игрока
                 PLAYER_SETTINGS.put(player.getUuid(), new PlayerSettings(payload.radius(), payload.up(), payload.down()));
             });
         });
+
+        // Регистрация команды /destroy
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(CommandManager.literal("destroy")
                     .then(CommandManager.argument("blockname", StringArgumentType.greedyString())
@@ -76,50 +76,10 @@ public class ChunkDestroyer implements ModInitializer {
                                         return 0;
                                     }
 
-                                    ServerWorld world = context.getSource().getWorld();
-                                    BlockPos playerPos = player.getBlockPos();
+                                    // Вызываем публичную функцию очистки
+                                    int removedCount = destroyBlocksForPlayer(player, targetBlock);
 
-                                    PlayerSettings settings = PLAYER_SETTINGS.getOrDefault(player.getUuid(),DEFEAULT_SETTINGS);
-
-                                    int radius = settings.radius();
-
-                                    int halfRadius = radius / 2;
-
-                                    int minX = playerPos.getX() - halfRadius;
-                                    int maxX = playerPos.getX() + (radius - halfRadius - 1);
-
-                                    int minZ = playerPos.getZ() - halfRadius;
-                                    int maxZ = playerPos.getZ() + (radius - halfRadius - 1);
-
-                                    int heightUp = settings.heightUp();
-                                    int heightDown = settings.heightDown();
-
-                                    int minY = playerPos.getY() - heightDown;
-                                    int maxY = playerPos.getY() + heightUp;
-
-                                    int worldMinY = world.getBottomY();
-                                    int worldMaxY = world.getBottomY() + world.getHeight() - 1;
-
-                                    if (minY < worldMinY) minY = worldMinY;
-                                    if (maxY > worldMaxY) maxY = worldMaxY;
-
-                                    AtomicInteger removedCount = new AtomicInteger(0);
-                                    BlockPos.Mutable mutablePos = new BlockPos.Mutable();
-
-                                    for (int x = minX; x <= maxX; x++) {
-                                        for (int z = minZ; z <= maxZ; z++) {
-                                            for (int y = maxY; y >= minY; y--) {
-                                                mutablePos.set(x, y, z);
-
-                                                if (world.getBlockState(mutablePos).isOf(targetBlock)) {
-                                                    world.setBlockState(mutablePos, Blocks.AIR.getDefaultState());
-                                                    removedCount.incrementAndGet();
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    context.getSource().sendFeedback(() -> Text.translatable("command.chunkdestroyer.success", removedCount.get()), false);
+                                    context.getSource().sendFeedback(() -> Text.translatable("command.chunkdestroyer.success", removedCount), false);
                                     return 1;
                                 } else {
                                     context.getSource().sendError(Text.translatable("command.chunkdestroyer.error.not_found", text));
@@ -127,5 +87,58 @@ public class ChunkDestroyer implements ModInitializer {
                                 }
                             })));
         });
+    }
+
+    /**
+     * Публичный метод для уничтожения блоков вокруг игрока на основе его настроек радиуса.
+     * Возвращает количество удалённых блоков.
+     */
+    public static int destroyBlocksForPlayer(ServerPlayerEntity player, Block targetBlock) {
+        if (targetBlock == Blocks.AIR) return 0;
+
+        // Исправлено: приводим player.getWorld() к ServerWorld
+        ServerWorld world = player.getCommandSource().getWorld();
+        BlockPos playerPos = player.getBlockPos();
+
+        PlayerSettings settings = PLAYER_SETTINGS.getOrDefault(player.getUuid(), DEFEAULT_SETTINGS);
+
+        int radius = settings.radius();
+        int halfRadius = radius / 2;
+
+        int minX = playerPos.getX() - halfRadius;
+        int maxX = playerPos.getX() + (radius - halfRadius - 1);
+
+        int minZ = playerPos.getZ() - halfRadius;
+        int maxZ = playerPos.getZ() + (radius - halfRadius - 1);
+
+        int heightUp = settings.heightUp();
+        int heightDown = settings.heightDown();
+
+        int minY = playerPos.getY() - heightDown;
+        int maxY = playerPos.getY() + heightUp;
+
+        int worldMinY = world.getBottomY();
+        int worldMaxY = world.getBottomY() + world.getHeight() - 1;
+
+        if (minY < worldMinY) minY = worldMinY;
+        if (maxY > worldMaxY) maxY = worldMaxY;
+
+        AtomicInteger removedCount = new AtomicInteger(0);
+        BlockPos.Mutable mutablePos = new BlockPos.Mutable();
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int y = maxY; y >= minY; y--) {
+                    mutablePos.set(x, y, z);
+
+                    if (world.getBlockState(mutablePos).isOf(targetBlock)) {
+                        world.setBlockState(mutablePos, Blocks.AIR.getDefaultState());
+                        removedCount.incrementAndGet();
+                    }
+                }
+            }
+        }
+
+        return removedCount.get();
     }
 }

@@ -1,7 +1,10 @@
+import org.gradle.api.file.DuplicatesStrategy
 plugins {
 	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
 	id 'org.jetbrains.kotlin.jvm' version '2.4.10'
+	id "org.jetbrains.kotlin.kapt" version '2.4.10'
+	id "org.jetbrains.kotlin.plugin.lombok" version '2.4.10'
 }
 
 version = project.mod_version
@@ -13,14 +16,27 @@ repositories {
 	maven { url 'https://jitpack.io' }
 
 	// Mod Menu
-	maven{ url "https://api.modrinth.com/maven"}
+	maven { url "https://api.modrinth.com/maven" }
+
+	// Репозиторий Plasmo Voice API
+	maven {
+		name = "plasmoverse-releases"
+		url = "https://repo.plasmoverse.com/releases"
+	}
+
+	// Snapshot Plasmo Voice
+	maven {
+		name = "plasmoverse-snapshots"
+		url = "https://repo.plasmoverse.com/snapshots"
+	}
+	mavenCentral()
 }
 
 loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"funny-mod" {
+		"chunk-destroyer" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
@@ -33,19 +49,32 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
+	// Fabric API
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// Owo lib
 	modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 	include "io.wispforest:owo-sentinel:${project.owo_version}"
-	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
+	kapt "io.wispforest:owo-lib:${project.owo_version}"
 
 	// Mod Menu
 	modImplementation "maven.modrinth:modmenu:17.0.0"
 
 	// Kotlin
 	modImplementation "net.fabricmc:fabric-language-kotlin:1.13.12+kotlin.2.4.0"
+
+	// Plasmo Voice API
+	modCompileOnly "su.plo.voice.api:client:2.1.13"
+
+    // Plasmo Voice only for IDE
+	modLocalRuntime "maven.modrinth:1bZhdhsH:6tbEbkDm"
+
+	modLocalRuntime "me.lucko:fabric-permissions-api:0.3.3"
+
+	// Vosk and JNA
+	implementation "com.alphacephei:vosk:0.3.38"
+	implementation "net.java.dev.jna:jna:5.14.0"
+	testImplementation 'org.jetbrains.kotlin:kotlin-test'
 }
 
 processResources {
@@ -58,13 +87,10 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 17
+	it.options.release = 21
 }
 
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
 	sourceCompatibility = JavaVersion.VERSION_21
@@ -72,28 +98,30 @@ java {
 }
 
 jar {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
 	def projectName = project.name
+
 	inputs.property "projectName", projectName
 
 	from("LICENSE") {
-		rename { "${it}_$projectName"}
+		rename { "${it}_$projectName" }
+	}
+
+	from {
+		configurations.runtimeClasspath
+				.filter { it.name.contains("vosk") || it.name.contains("jna") }
+				.collect {
+					it.isDirectory() ? it : zipTree(it)
+				}
 	}
 }
 
-// configure the maven publication
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
 			from components.java
 		}
-	}
-
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
 	}
 }
 
@@ -105,7 +133,10 @@ sourceSets{
 	}
 }
 
-
 kotlin{
 	jvmToolchain (21)
+}
+
+kapt {
+	keepJavacAnnotationProcessors = true
 }

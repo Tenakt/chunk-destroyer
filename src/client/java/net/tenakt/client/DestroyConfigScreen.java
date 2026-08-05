@@ -4,14 +4,10 @@ import io.wispforest.owo.ui.base.BaseUIModelScreen;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.component.UIComponents;
-import io.wispforest.owo.ui.component.SpacerComponent;
-import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.Identifier;
-import net.tenakt.MyModInitializer;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.tenakt.network.ConfigSyncPayload;
+import net.tenakt.MyModInitializer;
 
 public class DestroyConfigScreen extends BaseUIModelScreen<FlowLayout> {
 

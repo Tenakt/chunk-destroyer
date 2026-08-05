@@ -17,10 +17,7 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			{
-				"adapter": "kotlin",
-				"value": "net.tenakt.ChunkDestroyer"
-			},
+			"net.tenakt.ChunkDestroyer",
 			"net.tenakt.MyModInitializer"
 		],
 		"client": [
@@ -39,6 +36,7 @@
 		"java": ">=21",
 		"fabric-api": "*",
 		"owo": ">=0.13.0",
-		"fabric-language-kotlin": ">=1.13.12"
+		"fabric-language-kotlin": ">=1.13.12",
+		"plasmovoice": ">=2.1.13"
 	}
 }
