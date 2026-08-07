@@ -22,21 +22,30 @@ object VoskManager {
 
     fun init() {
         println("Initializing Vosk...")
+        // При старте игры сразу загружаем распознаватель
+        reloadRecognizer()
+    }
 
+    // Аннотация @JvmStatic нужна, чтобы Java-код видел этот метод
+    @JvmStatic
+    fun reloadRecognizer() {
         executor.submit {
             try {
-                val gameDir = FabricLoader.getInstance().gameDir.toFile()
                 val modelDir = ModelExtractor.extractModel("en-us")
                 if (!modelDir.exists()) {
                     println("[ChunkDestroyer] Vosk model not found!")
                     return@submit
                 }
                 val model = Model(modelDir.absolutePath)
-                val grammar = loadGrammar()
+                val grammar = generateGrammarFromConfig()
 
-                println("[ChunkDestroyer] Loaded grammar:")
+                println("[ChunkDestroyer] Loaded grammar from config:")
                 println(grammar)
 
+                // Если распознаватель уже работал, выключаем его
+                recognizer?.close()
+
+                // Создаем новый с новым словарем!
                 recognizer = Recognizer(
                     model,
                     48000f,
@@ -52,33 +61,25 @@ object VoskManager {
             }
         }
     }
-    private fun loadGrammar(): String {
-        // Пытаемся прочитать файл из ресурсов мода
-        val inputStream = javaClass.classLoader.getResourceAsStream("assets/chunk-destroyer/blocks.json")
 
-        if (inputStream != null) {
-            println("[ChunkDestroyer] Successfully loaded blocks.json from resources!")
-            return inputStream.bufferedReader().use { it.readText() }
+    private fun generateGrammarFromConfig(): String {
+        val configBlocks = net.tenakt.MyModInitializer.CONFIG.allowedBlocks()
+
+        val grammarList = configBlocks
+            .map { it.replace('_', ' ') }   // <-- на случай старых конфигов
+            .toMutableList()
+
+        if (!grammarList.contains("[unk]")) {
+            grammarList.add("[unk]")
         }
 
-        println("[ChunkDestroyer] blocks.json not found in resources, using default")
-
-        return """
-    [
-      "stone",
-      "dirt",
-      "grass block",
-      "sand",
-      "gravel",
-      "diamond",
-      "iron",
-      "gold",
-      "coal",
-      "obsidian",
-      "[unk]"
-    ]
-    """.trimIndent()
+        return grammarList.joinToString(
+            separator = "\", \"",
+            prefix = "[\"",
+            postfix = "\"]"
+        )
     }
+
     fun processAudio(
         pcmData: ShortArray,
         onBlockRecognized: (String) -> Unit
@@ -105,11 +106,11 @@ object VoskManager {
             )
         }
     }
+
     private fun parseAndTrigger(
         json: String,
         onBlockRecognized: (String) -> Unit
     ) {
-
         val now = System.currentTimeMillis()
         val textMatch =
             """"text"\s*:\s*"([^"]+)""""
@@ -139,8 +140,7 @@ object VoskManager {
             return
 
         // сначала проверяем целую фразу
-        val fullId =
-            text.replace(" ", "_")
+        val fullId = text.replace(" ", "_")
 
         if (checkBlock(fullId)) {
             println("Block found: $fullId")
@@ -151,8 +151,7 @@ object VoskManager {
         }
 
         // потом отдельные слова
-        val words =
-            text.split(" ")
+        val words = text.split(" ")
 
         for (word in words) {
             val cleanWord =
@@ -176,12 +175,7 @@ object VoskManager {
     }
 
     private fun checkBlock(name: String): Boolean {
-
-        val id =
-            Identifier.of(
-                "minecraft",
-                name
-            )
+        val id = Identifier.of("minecraft", name)
         return Registries.BLOCK.containsId(id)
     }
 
