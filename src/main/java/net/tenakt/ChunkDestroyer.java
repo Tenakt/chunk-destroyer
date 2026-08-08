@@ -7,8 +7,6 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -17,7 +15,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.tenakt.network.ConfigSyncPayload;
-import net.tenakt.network.VoiceLevitationPayload;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,80 +30,10 @@ public class ChunkDestroyer implements ModInitializer {
 
     @Override
     public void onInitialize() {
-
-        // ==========================================
-        // 1. РЕГИСТРАЦИЯ ПАКЕТА ЛЕВИТАЦИИ
-        // ==========================================
-        PayloadTypeRegistry.playC2S().register(VoiceLevitationPayload.ID, VoiceLevitationPayload.CODEC);
-
-        ServerPlayNetworking.registerGlobalReceiver(VoiceLevitationPayload.ID, (payload, context) -> {
-            context.server().execute(() -> {
-                ServerPlayerEntity player = context.player();
-                if (player == null) return;
-
-                int height = payload.height();
-
-                // Лог и сообщение для отладки — поможет убедиться, что пакет дошёл до сервера
-                System.out.println("[ChunkDestroyer] Received VoiceLevitationPayload from " + player.getName().getString() + " height=" + height);
-                player.sendMessage(Text.literal("[ChunkDestroyer] Levitation packet received, height=" + height), false);
-
-                // 1. Попробуем телепортировать игрока вверх на заданное количество блоков (без повреждений).
-                ServerWorld world = (ServerWorld) player.getCommandSource().getWorld();
-                double currX = player.getX();
-                double currZ = player.getZ();
-                double desiredY = player.getY() + height;
-
-                int worldMinY = world.getBottomY();
-                int worldMaxY = world.getBottomY() + world.getHeight() - 1;
-
-                if (desiredY > worldMaxY) desiredY = worldMaxY;
-
-                int floorDesired = (int)Math.floor(desiredY);
-                int safeYInt = Integer.MIN_VALUE;
-
-                // Ищем безопасный уровень сверху вниз начиная с желаемого уровня (должно быть хотя бы 2 блока воздуха)
-                BlockPos.Mutable checkPos = new BlockPos.Mutable();
-                for (int yCheck = floorDesired; yCheck <= worldMaxY; yCheck++) {
-                    checkPos.set((int)Math.floor(currX), yCheck, (int)Math.floor(currZ));
-                    if (world.getBlockState(checkPos).isAir() && world.getBlockState(checkPos.up()).isAir()) {
-                        safeYInt = yCheck;
-                        break;
-                    }
-                }
-
-                // Если сверху не найдено — ищем вниз от желаемого
-                if (safeYInt == Integer.MIN_VALUE) {
-                    for (int yCheck = floorDesired; yCheck >= worldMinY; yCheck--) {
-                        checkPos.set((int)Math.floor(currX), yCheck, (int)Math.floor(currZ));
-                        if (world.getBlockState(checkPos).isAir() && world.getBlockState(checkPos.up()).isAir()) {
-                            safeYInt = yCheck;
-                            break;
-                        }
-                    }
-                }
-
-                if (safeYInt != Integer.MIN_VALUE) {
-                    double safeY = safeYInt + 0.1; // небольшой оффсет, чтобы не застрять
-                    // Используем более совместимый метод teleport(double x, double y, double z, boolean)
-                    player.teleport(currX, safeY, currZ, false);
-
-                    // Сбрасываем падение и даём эффект замедленного падения
-                    player.fallDistance = 0F;
-                    player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, 200, 0, false, false, true));
-
-                    System.out.println("[ChunkDestroyer] Teleported " + player.getName().getString() + " to Y=" + safeY);
-                } else {
-                    player.sendMessage(Text.literal("[ChunkDestroyer] Unable to find safe teleport location."), false);
-                    System.out.println("[ChunkDestroyer] Unable to find safe teleport location for " + player.getName().getString());
-                }
-            });
-        });
-
-        // ==========================================
-        // 2. РЕГИСТРАЦИЯ СИНХРОНИЗАЦИИ НАСТРОЕК
-        // ==========================================
+        // Регистрируем пакет синхронизации настроек
         PayloadTypeRegistry.playC2S().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
 
+        // Принимаем пакет и сохраняем настройки ЛИЧНО для этого игрока
         ServerPlayNetworking.registerGlobalReceiver(ConfigSyncPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 ServerPlayerEntity player = context.player();
@@ -114,9 +41,7 @@ public class ChunkDestroyer implements ModInitializer {
             });
         });
 
-        // ==========================================
-        // 3. РЕГИСТРАЦИЯ КОМАНДЫ /destroy
-        // ==========================================
+        // Регистрация команды /destroy
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(CommandManager.literal("destroy")
                     .then(CommandManager.argument("blockname", StringArgumentType.greedyString())
@@ -171,6 +96,7 @@ public class ChunkDestroyer implements ModInitializer {
     public static int destroyBlocksForPlayer(ServerPlayerEntity player, Block targetBlock) {
         if (targetBlock == Blocks.AIR) return 0;
 
+        // Исправлено: приводим player.getWorld() к ServerWorld
         ServerWorld world = player.getCommandSource().getWorld();
         BlockPos playerPos = player.getBlockPos();
 
