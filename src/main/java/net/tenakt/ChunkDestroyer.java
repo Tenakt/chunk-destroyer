@@ -50,21 +50,54 @@ public class ChunkDestroyer implements ModInitializer {
                 System.out.println("[ChunkDestroyer] Received VoiceLevitationPayload from " + player.getName().getString() + " height=" + height);
                 player.sendMessage(Text.literal("[ChunkDestroyer] Levitation packet received, height=" + height), false);
 
-                // 1. Снимаем флаг земли, чтобы игра не гасила импульс
-                player.setOnGround(false);
+                // 1. Попробуем телепортировать игрока вверх на заданное количество блоков (без повреждений).
+                ServerWorld world = player.getServerWorld();
+                double currX = player.getX();
+                double currZ = player.getZ();
+                double desiredY = player.getY() + height;
 
-                // 2. Сбрасываем дистанцию падения чтобы не получить урон
-                player.fallDistance = 0F;
+                int worldMinY = world.getBottomY();
+                int worldMaxY = world.getBottomY() + world.getHeight() - 1;
 
-                // 3. Задаем вертикальную скорость (выстрел вверх) — рассчитываем по g≈0.08 чтобы достичь примерно указанной высоты
-                double velocityY = Math.sqrt(0.16 * height);
-                player.addVelocity(0, velocityY, 0);
+                if (desiredY > worldMaxY) desiredY = worldMaxY;
 
-                // 4. Сообщаем серверу, что скорость изменилась — он сам отправит пакет клиенту в следующем тике
-                player.velocityDirty = true;
+                int floorDesired = (int)Math.floor(desiredY);
+                int safeYInt = Integer.MIN_VALUE;
 
-                // 5. Даем плавное падение на 10 секунд без пузырьков
-                player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, 200, 0, false, false, true));
+                // Ищем безопасный уровень сверху вниз начиная с желаемого уровня (должно быть хотя бы 2 блока воздуха)
+                BlockPos.Mutable checkPos = new BlockPos.Mutable();
+                for (int yCheck = floorDesired; yCheck <= worldMaxY; yCheck++) {
+                    checkPos.set((int)Math.floor(currX), yCheck, (int)Math.floor(currZ));
+                    if (world.getBlockState(checkPos).isAir() && world.getBlockState(checkPos.up()).isAir()) {
+                        safeYInt = yCheck;
+                        break;
+                    }
+                }
+
+                // Если сверху не найдено — ищем вниз от желаемого
+                if (safeYInt == Integer.MIN_VALUE) {
+                    for (int yCheck = floorDesired; yCheck >= worldMinY; yCheck--) {
+                        checkPos.set((int)Math.floor(currX), yCheck, (int)Math.floor(currZ));
+                        if (world.getBlockState(checkPos).isAir() && world.getBlockState(checkPos.up()).isAir()) {
+                            safeYInt = yCheck;
+                            break;
+                        }
+                    }
+                }
+
+                if (safeYInt != Integer.MIN_VALUE) {
+                    double safeY = safeYInt + 0.1; // небольшой оффсет, чтобы не застрять
+                    player.teleport(world, currX, safeY, currZ, player.getYaw(), player.getPitch());
+
+                    // Сбрасываем падение и даём эффект замедленного падения
+                    player.fallDistance = 0F;
+                    player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, 200, 0, false, false, true));
+
+                    System.out.println("[ChunkDestroyer] Teleported " + player.getName().getString() + " to Y=" + safeY);
+                } else {
+                    player.sendMessage(Text.literal("[ChunkDestroyer] Unable to find safe teleport location."), false);
+                    System.out.println("[ChunkDestroyer] Unable to find safe teleport location for " + player.getName().getString());
+                }
             });
         });
 
