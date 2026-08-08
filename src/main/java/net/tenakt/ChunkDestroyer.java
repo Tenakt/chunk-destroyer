@@ -46,6 +46,10 @@ public class ChunkDestroyer implements ModInitializer {
 
                 int height = payload.height();
 
+                // Лог и сообщение для отладки — поможет убедиться, что пакет дошёл до сервера
+                System.out.println("[ChunkDestroyer] Received VoiceLevitationPayload from " + player.getName().getString() + " height=" + height);
+                player.sendMessage(Text.literal("[ChunkDestroyer] Levitation packet received, height=" + height), false);
+
                 // 1. Снимаем флаг земли, чтобы игра не гасила импульс
                 player.setOnGround(false);
 
