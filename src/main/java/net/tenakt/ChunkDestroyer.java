@@ -51,7 +51,7 @@ public class ChunkDestroyer implements ModInitializer {
                 player.sendMessage(Text.literal("[ChunkDestroyer] Levitation packet received, height=" + height), false);
 
                 // 1. Попробуем телепортировать игрока вверх на заданное количество блоков (без повреждений).
-                ServerWorld world = player.getServerWorld();
+                ServerWorld world = (ServerWorld) player.getCommandSource().getWorld();
                 double currX = player.getX();
                 double currZ = player.getZ();
                 double desiredY = player.getY() + height;
