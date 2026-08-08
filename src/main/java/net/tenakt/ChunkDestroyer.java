@@ -7,6 +7,8 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -15,6 +17,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.tenakt.network.ConfigSyncPayload;
+import net.tenakt.network.VoiceLevitationPayload;
 
 import java.util.Map;
 import java.util.UUID;
@@ -30,10 +33,42 @@ public class ChunkDestroyer implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        // Регистрируем пакет синхронизации настроек
+
+        // ==========================================
+        // 1. РЕГИСТРАЦИЯ ПАКЕТА ЛЕВИТАЦИИ
+        // ==========================================
+        PayloadTypeRegistry.playC2S().register(VoiceLevitationPayload.ID, VoiceLevitationPayload.CODEC);
+
+        ServerPlayNetworking.registerGlobalReceiver(VoiceLevitationPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                ServerPlayerEntity player = context.player();
+                if (player == null) return;
+
+                int height = payload.height();
+
+                // 1. Снимаем флаг земли, чтобы игра не гасила импульс
+                player.setOnGround(false);
+
+                // 2. Сбрасываем дистанцию падения чтобы не получить урон
+                player.fallDistance = 0F;
+
+                // 3. Задаем вертикальную скорость (выстрел вверх) — рассчитываем по g≈0.08 чтобы достичь примерно указанной высоты
+                double velocityY = Math.sqrt(0.16 * height);
+                player.addVelocity(0, velocityY, 0);
+
+                // 4. Сообщаем серверу, что скорость изменилась — он сам отправит пакет клиенту в следующем тике
+                player.velocityDirty = true;
+
+                // 5. Даем плавное падение на 10 секунд без пузырьков
+                player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, 200, 0, false, false, true));
+            });
+        });
+
+        // ==========================================
+        // 2. РЕГИСТРАЦИЯ СИНХРОНИЗАЦИИ НАСТРОЕК
+        // ==========================================
         PayloadTypeRegistry.playC2S().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
 
-        // Принимаем пакет и сохраняем настройки ЛИЧНО для этого игрока
         ServerPlayNetworking.registerGlobalReceiver(ConfigSyncPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 ServerPlayerEntity player = context.player();
@@ -41,7 +76,9 @@ public class ChunkDestroyer implements ModInitializer {
             });
         });
 
-        // Регистрация команды /destroy
+        // ==========================================
+        // 3. РЕГИСТРАЦИЯ КОМАНДЫ /destroy
+        // ==========================================
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(CommandManager.literal("destroy")
                     .then(CommandManager.argument("blockname", StringArgumentType.greedyString())
@@ -96,7 +133,6 @@ public class ChunkDestroyer implements ModInitializer {
     public static int destroyBlocksForPlayer(ServerPlayerEntity player, Block targetBlock) {
         if (targetBlock == Blocks.AIR) return 0;
 
-        // Исправлено: приводим player.getWorld() к ServerWorld
         ServerWorld world = player.getCommandSource().getWorld();
         BlockPos playerPos = player.getBlockPos();
 
