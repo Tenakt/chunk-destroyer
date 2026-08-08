@@ -87,7 +87,8 @@ public class ChunkDestroyer implements ModInitializer {
 
                 if (safeYInt != Integer.MIN_VALUE) {
                     double safeY = safeYInt + 0.1; // небольшой оффсет, чтобы не застрять
-                    player.teleport(world, currX, safeY, currZ, player.getYaw(), player.getPitch());
+                    // Используем более совместимый метод teleport(double x, double y, double z, boolean)
+                    player.teleport(currX, safeY, currZ, false);
 
                     // Сбрасываем падение и даём эффект замедленного падения
                     player.fallDistance = 0F;
