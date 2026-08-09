@@ -43,11 +43,6 @@ For example:
 /destroy minecraft:deepslate
 
 
-You can also target blocks added by other mods:
-
-/destroy modid:block_name
-
-
 Block IDs are supported through Minecraft's block registry, with command suggestions helping you find the block you're looking for.
 
 🎙️ Voice Control
