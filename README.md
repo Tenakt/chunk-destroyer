@@ -4,15 +4,6 @@
 
 Chunk Destroyer is a Fabric mod that lets you remove large amounts of a specific block type from the world with a single command — or simply by using your voice.
 
-Need to clear a massive area of stone?
-Want to remove sand from a desert?
-Building a custom challenge or mini-game?
-
-Just tell Chunk Destroyer what to remove.
-
-/destroy stone
-
-
 And let the destruction begin. 💥
 
 ✨ Features
