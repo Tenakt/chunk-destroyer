@@ -4,7 +4,7 @@ import io.wispforest.owo.config.annotation.Config;
 import io.wispforest.owo.config.annotation.Modmenu;
 import java.util.List;
 
-@Modmenu(modId = "chunk-destroyer")
+//@Modmenu(modId = "chunk-destroyer")
 @Config(name = "chunk-destroyer", wrapperName = "MyConfig")
 public class MyConfigModel {
     public int destroyRadius = 16;

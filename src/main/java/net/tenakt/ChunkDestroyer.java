@@ -170,25 +170,26 @@ public class ChunkDestroyer implements ModInitializer {
             if (LEVITATING_PLAYERS.isEmpty()) return;
 
             // Проходимся по всем летящим игрокам
-            LEVITATING_PLAYERS.entrySet().removeIf(entry -> {
-                ServerPlayerEntity p = server.getPlayerManager().getPlayer(entry.getKey());
+            LEVITATING_PLAYERS.forEach((uuid, ticks) -> {
+                ServerPlayerEntity p = server.getPlayerManager().getPlayer(uuid);
 
                 // Если игрок вышел с сервера, перестаем его отслеживать
-                if (p == null) return true;
+                if (p == null) {
+                    LEVITATING_PLAYERS.remove(uuid);
+                    return;
+                }
 
-                int ticks = entry.getValue() + 1;
-                entry.setValue(ticks);
+                int newTicks = ticks + 1;
+                LEVITATING_PLAYERS.put(uuid, newTicks);
 
                 // ВАЖНО: Ждем хотя бы 20 тиков (1 секунду) после запуска.
                 // Иначе сервер может снять эффект в ту же миллисекунду,
                 // когда мы подбросили игрока, думая, что он еще стоит на земле.
-                if (ticks > 20 && p.isOnGround()) {
+                if (newTicks > 20 && p.isOnGround()) {
                     // Игрок коснулся земли! Забираем эффект.
                     p.removeStatusEffect(StatusEffects.SLOW_FALLING);
-                    return true; // Удаляем игрока из списка отслеживания
+                    LEVITATING_PLAYERS.remove(uuid);
                 }
-
-                return false; // Оставляем в списке, пусть летит дальше
             });
         });
     }
