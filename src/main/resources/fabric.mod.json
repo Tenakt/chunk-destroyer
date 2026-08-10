@@ -3,14 +3,15 @@
 	"id": "chunk-destroyer",
 	"version": "${version}",
 	"name": "Chunk Destroyer",
-	"description": "The /destroy <block> command instantly deletes all blocks within a single chunk. Ideal for quick clearing.",
+	"description": "The /destroy command instantly deletes all blocks within a single chunk. Ideal for quick clearing.",
 	"authors": [
 		"Tenakt",
 		"Black_Soul"
 	],
 	"contact": {
 		"homepage": "https://modrinth.com/mod/chunk-destroyer-tenakt",
-		"sources": "https://github.com/Tenakt/chunk-destroyed.git"
+		"sources": "https://github.com/Tenakt/chunk-destroyed.git",
+		"issues": "https://discord.gg/NxuyPwY9br"
 	},
 	"license": "GPL-3.0-or-later",
 	"icon": "assets/chunk-destroyer/icon.png",
@@ -38,5 +39,13 @@
 		"owo": ">=0.13.0",
 		"fabric-language-kotlin": ">=1.13.12",
 		"plasmovoice": ">=2.1.13"
+	},
+	"custom": {
+		"modmenu": {
+			"links": {
+				"modmenu.discord": "https://discord.gg/MbFPYuXgvh",
+				"modmenu.curseforge": "https://www.curseforge.com/minecraft/mc-mods/chunk-destroyer"
+			}
+		}
 	}
 }

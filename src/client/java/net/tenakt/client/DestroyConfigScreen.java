@@ -44,6 +44,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         // ==========================================
         // ЛЕВАЯ КОЛОНКА (Настройки)
         // ==========================================
+
+        // Radius Settings
         var leftColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         leftColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
@@ -75,6 +77,32 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         leftColumn.child(upSlider);
         leftColumn.child(downSlider);
 
+        // === СТРОКА С ГАЛОЧКОЙ И СЛОВОМ ПОДБРОСА ===
+        var levRow = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
+        levRow.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.top(12).add(0, 8, 0, 0));
+
+        boolean currentLev = MyModInitializer.CONFIG.enableLevitation();
+        var levCheckbox = UIComponents.button(Text.literal(currentLev ? "[✔]" : "[X]"), btn -> {
+            boolean newState = !MyModInitializer.CONFIG.enableLevitation();
+            MyModInitializer.CONFIG.enableLevitation(newState);
+            btn.setMessage(Text.literal(newState ? "[✔]" : "[X]"));
+        });
+        levCheckbox.sizing(Sizing.fixed(26), Sizing.fixed(20)).margins(Insets.right(6));
+
+        var levLabel = UIComponents.label(Text.literal("Bounce on word:"));
+        levLabel.margins(Insets.right(6));
+
+        var levWordInput = UIComponents.textBox(Sizing.fixed(70));
+        levWordInput.text(MyModInitializer.CONFIG.levitationWord());
+
+        levRow.child(levCheckbox).child(levLabel).child(levWordInput);
+        leftColumn.child(levRow);
+
+        // Высота подброса
+        var levHeightInput = UIComponents.textBox(Sizing.fixed(60));
+        levHeightInput.text(String.valueOf(MyModInitializer.CONFIG.levitationHeight()));
+        leftColumn.child(createInputRow("Fly Height", levHeightInput));
+
         var saveButton = UIComponents.button(Text.literal("Save & Close"), button -> {
             try {
                 int newRadius = (int) radiusSlider.discreteValue();
@@ -86,6 +114,11 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 MyModInitializer.CONFIG.heightDown(newDownRadius);
 
                 MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(activeBlocks));
+
+                MyModInitializer.CONFIG.levitationWord(levWordInput.getText().trim().toLowerCase());
+                try {
+                    MyModInitializer.CONFIG.levitationHeight(Integer.parseInt(levHeightInput.getText()));
+                } catch (NumberFormatException ignored) {}
 
                 if (MinecraftClient.getInstance().getNetworkHandler() != null) {
                     net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(

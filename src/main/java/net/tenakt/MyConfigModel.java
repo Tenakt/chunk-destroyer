@@ -11,4 +11,9 @@ public class MyConfigModel {
     public int heightUp = 384;
     public int heightDown = 384;
     public List<String> allowedBlocks = List.of("stone", "dirt", "grass block", "sand");
+
+    // === НАСТРОЙКИ ПОДБРАСЫВАНИЯ ===
+    public boolean enableLevitation = false; // Включено ли подбрасывание
+    public String levitationWord = "stone";  // Слово, при произношении которого подбрасывает
+    public int levitationHeight = 15;        // Высота подброса в блоках
 }

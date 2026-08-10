@@ -18,7 +18,6 @@ class MyModClientInitializer : ClientModInitializer {
     private val voiceAddon = PlasmoVoiceAddon()
 
     override fun onInitializeClient() {
-
         PlasmoVoiceClient.getAddonsLoader().load(voiceAddon)
 
         openConfigKey = KeyBindingHelper.registerKeyBinding(
