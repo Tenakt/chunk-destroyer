@@ -6,6 +6,7 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.*;
+import lombok.val;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -49,7 +50,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         var leftColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         leftColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
-        var title = UIComponents.label(Text.literal("Chunk Destroyer Settings")).shadow(true);
+        var title = UIComponents.label(Text.translatable("gui.chunkdestroyer.title")).shadow(true);
         leftColumn.child(title.margins(Insets.bottom(20)));
 
         var radiusSlider = UIComponents
@@ -57,21 +58,21 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.destroyRadius());
 
-        radiusSlider.message(value -> Text.literal("Destroy Radius: " + value));
+        radiusSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius", value));
 
         var upSlider = UIComponents
                 .discreteSlider(Sizing.fixed(180),1,384)
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.heightUp());
 
-        upSlider.message(value -> Text.literal("Destroy Radius UP: " + value));
+        upSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius_up", value));
 
         var downSlider = UIComponents
                 .discreteSlider(Sizing.fixed(180),1,384)
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.heightUp());
 
-        downSlider.message(value -> Text.literal("Destroy Radius Down: " + value));
+        downSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius_down", value));
 
         leftColumn.child(radiusSlider);
         leftColumn.child(upSlider);
@@ -89,7 +90,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         });
         levCheckbox.sizing(Sizing.fixed(26), Sizing.fixed(20)).margins(Insets.right(6));
 
-        var levLabel = UIComponents.label(Text.literal("Bounce on word:"));
+        var levLabel = UIComponents.label(Text.translatable("gui.chunkdestroyer.bounce_word"));
         levLabel.margins(Insets.right(6));
 
         var levWordInput = UIComponents.textBox(Sizing.fixed(70));
@@ -101,9 +102,9 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         // Высота подброса
         var levHeightInput = UIComponents.textBox(Sizing.fixed(60));
         levHeightInput.text(String.valueOf(MyModInitializer.CONFIG.levitationHeight()));
-        leftColumn.child(createInputRow("Fly Height", levHeightInput));
+        leftColumn.child(createInputRow(Text.translatable("gui.chunkdestroyer.fly_height"), levHeightInput));
 
-        var saveButton = UIComponents.button(Text.literal("Save & Close"), button -> {
+        var saveButton = UIComponents.button(Text.translatable("gui.chunkdestroyer.save"), button -> {
             try {
                 int newRadius = (int) radiusSlider.discreteValue();
                 int newUpRadius = (int) upSlider.discreteValue();
@@ -140,10 +141,10 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         var rightColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         rightColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
-        var blocksTitle = UIComponents.label(Text.literal("Allowed Blocks")).shadow(true);
+        var blocksTitle = UIComponents.label(Text.translatable("gui.chunkdestroyer.allowed_blocks")).shadow(true);
         rightColumn.child(blocksTitle.margins(Insets.bottom(2)));
 
-        var warningLabel = UIComponents.label(Text.literal("§7(Search to add, X to remove)"));
+        var warningLabel = UIComponents.label(Text.translatable("gui.chunkdestroyer.search_hint"));
         rightColumn.child(warningLabel.margins(Insets.bottom(8)));
 
         // Контейнер списка со скроллом
@@ -154,24 +155,47 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         scroll.surface(Surface.DARK_PANEL);
         rightColumn.child(scroll);
 
-        // Строка поиска (вместо добавления)
+        // Строка поиска
         var searchRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
         searchRow.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.top(10));
 
         searchInput = UIComponents.textBox(Sizing.fill(85));
-        searchInput.setSuggestion("Search block...");
+        searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
+
+        // === ИСПРАВЛЕНИЕ 1: Убираем наложение текста-подсказки при вводе ===
+        searchInput.setChangedListener(text -> {
+            if (text.isEmpty()) {
+                searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
+            } else {
+                searchInput.setSuggestion("");
+            }
+        });
 
         var searchBtn = UIComponents.button(Text.literal("🔍"), button -> {
             String query = searchInput.getText().trim().toLowerCase();
             if (query.isEmpty()) {
-                // Если поиск пустой, возвращаем показ активных блоков
                 isShowingSearchResults = false;
             } else {
-                // Ищем по всем блокам игры и модов (проверяем ID вроде minecraft:stone или modid:block)
                 isShowingSearchResults = true;
+
+                // ОБНОВЛЕННАЯ ЛОГИКА ПОИСКА (Русский + Английский)
                 searchResults = Registries.BLOCK.getIds().stream()
-                        .map(id -> id.getPath().replace('_', ' '))
-                        .filter(path -> path.contains(query))
+                        .filter(id -> {
+                            net.minecraft.block.Block block = Registries.BLOCK.get(id);
+
+                            // Английское название (например, "stone")
+                            String englishName = id.getPath().replace('_', ' ').toLowerCase();
+
+                            // Локализованное название из игры (например, "камень")
+                            String localizedName = net.minecraft.util.Language.getInstance()
+                                    .get(block.getTranslationKey()).toLowerCase();
+
+                            // Ищем совпадение в любом из вариантов
+                            return englishName.contains(query) ||
+                                    localizedName.contains(query) ||
+                                    id.toString().toLowerCase().contains(query);
+                        })
+                        .map(id -> id.getPath().replace('_', ' ')) // В список сохраняем только системный ID
                         .distinct()
                         .sorted()
                         .collect(Collectors.toList());
@@ -184,10 +208,12 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         searchRow.child(searchInput).child(searchBtn);
         rightColumn.child(searchRow);
 
-        // Кнопка возврата к списку выбранных, если мы в режиме поиска
-        var backToListBtn = UIComponents.button(Text.literal("Show My Active Blocks"), button -> {
+        // Кнопка возврата к списку
+        var backToListBtn = UIComponents.button(Text.translatable("gui.chunkdestroyer.show_active"), button -> {
             isShowingSearchResults = false;
             searchInput.text("");
+            // При очистке поиска возвращаем подсказку
+            searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
             refreshBlockList();
         });
         backToListBtn.sizing(Sizing.fill(100), Sizing.fixed(18)).margins(Insets.top(4));
@@ -197,13 +223,11 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         refreshBlockList();
     }
 
-    private FlowLayout createInputRow(String text, Object inputObj) {
+    private FlowLayout createInputRow(Text text, Object inputObj) {
         var row = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.bottom(8));
-
-        var label = UIComponents.label(Text.literal(text));
+        var label = UIComponents.label(text);
         label.margins(Insets.right(8));
-
         row.child(label).child((io.wispforest.owo.ui.core.UIComponent) inputObj);
         return row;
     }
@@ -212,11 +236,15 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         if (blockListContainer == null) return;
         blockListContainer.clearChildren();
 
-        // Определяем, что выводить: результаты поиска или текущий список активных блоков
         List<String> itemsToDisplay = isShowingSearchResults ? searchResults : activeBlocks;
 
         if (itemsToDisplay.isEmpty()) {
-            var emptyLabel = UIComponents.label(Text.literal(isShowingSearchResults ? "§cNo blocks found" : "§7List is empty"));
+            // ПЕРЕВОД ПУСТЫХ СПИСКОВ
+            Text emptyText = isShowingSearchResults
+                    ? Text.translatable("gui.chunkdestroyer.no_blocks")
+                    : Text.translatable("gui.chunkdestroyer.empty_list");
+
+            var emptyLabel = UIComponents.label(emptyText);
             blockListContainer.child(emptyLabel);
             return;
         }
@@ -224,27 +252,36 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         for (String block : itemsToDisplay) {
             var row = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row.verticalAlignment(VerticalAlignment.CENTER);
-            row.surface(Surface.flat(0x80000000)); // Черная полупрозрачная подложка
+            row.surface(Surface.flat(0x80000000));
             row.padding(Insets.of(3));
             row.margins(Insets.bottom(3));
 
-            // Делаем текст немного меньше (можно визуально отделить)
-            var label = UIComponents.label(Text.literal(block));
+            Text displayComponent = Text.literal(block);
+
+            // === ИСПРАВЛЕНИЕ 2: Возвращаем подчеркивания для корректного поиска ID (чтобы "smooth stone" переводился) ===
+            String fixedForId = block.replace(' ', '_');
+            String idString = fixedForId.contains(":") ? fixedForId : "minecraft:" + fixedForId;
+            Identifier blockId = Identifier.tryParse(idString);
+
+            if (blockId != null && Registries.BLOCK.containsId(blockId)) {
+                // Выводим красивое русское (или английское) имя блока в интерфейс
+                displayComponent = Text.translatable(Registries.BLOCK.get(blockId).getTranslationKey());
+            }
+
+            var label = UIComponents.label(displayComponent);
+
             label.sizing(Sizing.fill(80), Sizing.content());
             label.margins(Insets.left(3));
 
-            // Кнопка справа: если мы в активных — это удалить ("X"), если в поиске — добавить ("+")
             String actionText = isShowingSearchResults ? (activeBlocks.contains(block) ? "✔" : "+") : "X";
 
             var actionBtn = UIComponents.button(Text.literal(actionText), btn -> {
                 if (isShowingSearchResults) {
-                    // Режим поиска: клик добавляет блок в активные, если его там еще нет
                     if (!activeBlocks.contains(block)) {
                         activeBlocks.add(block);
-                        refreshBlockList(); // Обновит галочку
+                        refreshBlockList();
                     }
                 } else {
-                    // Режим активных: клик удаляет блок
                     activeBlocks.remove(block);
                     refreshBlockList();
                 }

@@ -21,8 +21,19 @@
   "gui.chunk-destroyer.radius": "Радиус удаления",
   "gui.chunk-destroyer.up": "Удалять блоков вверх",
   "gui.chunk-destroyer.down": "Удалять блоков вниз",
-  "gui.chunk-destroyer.save": "Сохранить и закрыть"
+  "gui.chunk-destroyer.save": "Сохранить и закрыть",
 
-
-
+  "gui.chunkdestroyer.title": "Настройки Chunk Destroyer",
+  "gui.chunkdestroyer.radius": "Радиус разрушения: %s",
+  "gui.chunkdestroyer.radius_up": "Радиус разрушения ВВЕРХ: %s",
+  "gui.chunkdestroyer.radius_down": "Радиус разрушения ВНИЗ: %s",
+  "gui.chunkdestroyer.bounce_word": "Подбросить при слове:",
+  "gui.chunkdestroyer.fly_height": "Высота полета",
+  "gui.chunkdestroyer.save": "Сохранить и закрыть",
+  "gui.chunkdestroyer.allowed_blocks": "Разрешенные блоки",
+  "gui.chunkdestroyer.search_hint": "§7(Поиск для добавления, X для удаления)",
+  "gui.chunkdestroyer.search_suggestion": "Поиск блока...",
+  "gui.chunkdestroyer.show_active": "Показать мои блоки",
+  "gui.chunkdestroyer.empty_list": "§7Список пуст",
+  "gui.chunkdestroyer.no_blocks": "§cБлоки не найдены"
 }

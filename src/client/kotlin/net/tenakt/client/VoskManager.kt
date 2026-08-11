@@ -1,59 +1,67 @@
 package net.tenakt.client
 
-import net.fabricmc.loader.api.FabricLoader
+import net.minecraft.client.MinecraftClient
 import net.minecraft.registry.Registries
 import net.minecraft.util.Identifier
+import net.minecraft.util.Language
 import org.vosk.Model
 import org.vosk.Recognizer
-import java.io.File
 import java.util.concurrent.Executors
 
 object VoskManager {
 
     private var recognizer: Recognizer? = null
+    private var currentModel: Model? = null
     private val executor = Executors.newSingleThreadExecutor()
 
     private var isInitialized = false
-
     private var lastSentTime = 0L
     private const val COOLDOWN_MS = 1500L
-
     private var lastRecognized = ""
 
+    private var isRussian = false
+    private val ruToEnMap = mutableMapOf<String, String>()
+
+    private var lastKnownLang = "uninitialized"
+
     fun init() {
-        println("Initializing Vosk...")
-        // При старте игры сразу загружаем распознаватель
-        reloadRecognizer()
+        println("Initializing VoskManager...")
+        // Обязательный фикс кодировки для русских букв
+        System.setProperty("jna.encoding", "UTF8")
     }
 
-    // Аннотация @JvmStatic нужна, чтобы Java-код видел этот метод
     @JvmStatic
     fun reloadRecognizer() {
+        val client = MinecraftClient.getInstance()
+        val currentLang = client?.options?.language ?: "en_us"
+        lastKnownLang = currentLang
+        isRussian = currentLang.contains("ru")
+
         executor.submit {
             try {
-                val modelDir = ModelExtractor.extractModel("en-us")
+                val modelName = if (isRussian) "ru" else "en-us"
+                val modelDir = ModelExtractor.extractModel(modelName)
+
                 if (!modelDir.exists()) {
-                    println("[ChunkDestroyer] Vosk model not found!")
+                    println("[ChunkDestroyer] Vosk model $modelName not found!")
                     return@submit
                 }
+
+                recognizer?.close()
+                currentModel?.close()
+
                 val model = Model(modelDir.absolutePath)
+                currentModel = model
+
                 val grammar = generateGrammarFromConfig()
 
-                println("[ChunkDestroyer] Loaded grammar from config:")
+                println("[ChunkDestroyer] Loaded grammar for $modelName:")
                 println(grammar)
 
-                // Если распознаватель уже работал, выключаем его
-                recognizer?.close()
-
-                // Создаем новый с новым словарем!
-                recognizer = Recognizer(
-                    model,
-                    48000f,
-                    grammar
-                )
+                recognizer = Recognizer(model, 48000f, grammar)
                 isInitialized = true
 
-                println("[ChunkDestroyer] Vosk model loaded successfully!")
+                println("[ChunkDestroyer] Vosk model $modelName loaded successfully!")
 
             } catch (e: Exception) {
                 println("[ChunkDestroyer] ERROR initializing Vosk:")
@@ -64,111 +72,121 @@ object VoskManager {
 
     private fun generateGrammarFromConfig(): String {
         val configBlocks = net.tenakt.MyModInitializer.CONFIG.allowedBlocks()
+        val grammarList = mutableListOf<String>()
+        ruToEnMap.clear()
 
-        val grammarList = configBlocks
-            .map { it.replace('_', ' ') }   // <-- на случай старых конфигов
-            .toMutableList()
+        for (blockId in configBlocks) {
+            val identifier = Identifier.tryParse(if (blockId.contains(":")) blockId else "minecraft:$blockId")
+
+            if (identifier != null && Registries.BLOCK.containsId(identifier)) {
+                val block = Registries.BLOCK.get(identifier)
+                val cleanBlockId = blockId.replace("minecraft:", "").replace('_', ' ')
+
+                if (isRussian) {
+                    val ruName = Language.getInstance().get(block.translationKey).lowercase()
+                    grammarList.add(ruName)
+
+                    // 1. Записываем точное название (оно в приоритете)
+                    ruToEnMap[ruName] = cleanBlockId
+
+                    // 2. Для отдельных слов добавляем их только в том случае, если они еще не заняты.
+                    // (Это спасет от бага, когда "гладкий камень" ломает обычный "камень")
+                    val words = ruName.split(" ")
+                    for (w in words) {
+                        ruToEnMap.putIfAbsent(w, cleanBlockId)
+                    }
+                } else {
+                    grammarList.add(cleanBlockId)
+                }
+            }
+        }
 
         if (!grammarList.contains("[unk]")) {
             grammarList.add("[unk]")
         }
 
-        return grammarList.joinToString(
-            separator = "\", \"",
-            prefix = "[\"",
-            postfix = "\"]"
-        )
+        return grammarList.joinToString(separator = "\", \"", prefix = "[\"", postfix = "\"]")
     }
 
-    fun processAudio(
-        pcmData: ShortArray,
-        onBlockRecognized: (String) -> Unit
-    ) {
-        if (!isInitialized || recognizer == null)
+    fun processAudio(pcmData: ShortArray, onBlockRecognized: (String) -> Unit) {
+        val client = MinecraftClient.getInstance()
+        val currentLang = client?.options?.language ?: "en_us"
+
+        if (currentLang != lastKnownLang) {
+            println("[ChunkDestroyer] Language changed to $currentLang, reloading Vosk...")
+            lastKnownLang = currentLang
+            reloadRecognizer()
             return
+        }
+
+        if (!isInitialized || recognizer == null) return
 
         executor.submit {
             val rec = recognizer ?: return@submit
-            val isFinal =
-                rec.acceptWaveForm(
-                    pcmData,
-                    pcmData.size
-                )
-            val jsonResult =
-                if (isFinal)
-                    rec.result
-                else
-                    rec.partialResult
+            val isFinal = rec.acceptWaveForm(pcmData, pcmData.size)
+            val jsonResult = if (isFinal) rec.result else rec.partialResult
 
-            parseAndTrigger(
-                jsonResult,
-                onBlockRecognized
-            )
+            parseAndTrigger(jsonResult, onBlockRecognized)
         }
     }
 
-    private fun parseAndTrigger(
-        json: String,
-        onBlockRecognized: (String) -> Unit
-    ) {
+    private fun parseAndTrigger(json: String, onBlockRecognized: (String) -> Unit) {
         val now = System.currentTimeMillis()
-        val textMatch =
-            """"text"\s*:\s*"([^"]+)""""
-                .toRegex()
-                .find(json)
-                ?: """"partial"\s*:\s*"([^"]+)""""
-                    .toRegex()
-                    .find(json)
-        val text =
-            textMatch
-                ?.groupValues
-                ?.get(1)
-                ?.trim()
-                ?.lowercase()
-                ?: return
+        val textMatch = """"text"\s*:\s*"([^"]+)"""".toRegex().find(json)
+            ?: """"partial"\s*:\s*"([^"]+)"""".toRegex().find(json)
 
-        if (text.isEmpty())
-            return
+        val text = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
 
-        if (text == lastRecognized)
-            return
+        if (text.isEmpty() || text == lastRecognized) return
 
         lastRecognized = text
-        println("Recognized text: $text")
+        println("Recognized raw text: $text")
 
-        if (now - lastSentTime < COOLDOWN_MS)
-            return
+        if (now - lastSentTime < COOLDOWN_MS) return
 
-        // сначала проверяем целую фразу
-        val fullId = text.replace(" ", "_")
+        // 1. Идеальное совпадение всей фразы
+        val translatedFullText = if (isRussian) ruToEnMap[text] ?: text else text
+        val fullId = translatedFullText.replace(" ", "_")
 
         if (checkBlock(fullId)) {
-            println("Block found: $fullId")
-
+            println("Block found (Full phrase): $fullId")
             lastSentTime = now
             onBlockRecognized(fullId)
             return
         }
 
-        // потом отдельные слова
+        // 2. Ищем многословный блок ВНУТРИ текста (например, сказал "удали гладкий камень пожалуйста")
+        if (isRussian) {
+            for ((ruName, enName) in ruToEnMap) {
+                if (ruName.contains(" ") && text.contains(ruName)) {
+                    val phraseId = enName.replace(" ", "_")
+                    if (checkBlock(phraseId)) {
+                        println("Block found (Phrase in text): $phraseId")
+                        lastSentTime = now
+                        onBlockRecognized(phraseId)
+                        return
+                    }
+                }
+            }
+        }
+
+        // 3. Если фраза целиком не найдена, разбиваем на отдельные слова
         val words = text.split(" ")
 
         for (word in words) {
-            val cleanWord =
-                word.replace(
-                    Regex("[^a-z0-9_]"),
-                    ""
-                )
+            val translatedWord = if (isRussian) ruToEnMap[word] ?: word else word
 
-            if (cleanWord.length < 3)
-                continue
+            // ВАЖНОЕ ИСПРАВЛЕНИЕ: Сначала меняем пробел на подчеркивание (smooth_stone),
+            // и только потом удаляем лишние символы!
+            val withUnderscores = translatedWord.replace(" ", "_")
+            val cleanWord = withUnderscores.replace(Regex("[^a-zа-яё0-9_]"), "")
+
+            if (cleanWord.length < 3) continue
 
             if (checkBlock(cleanWord)) {
-                println("Block found: $cleanWord")
-
+                println("Block found (Word): $cleanWord")
                 lastSentTime = now
                 onBlockRecognized(cleanWord)
-
                 break
             }
         }
@@ -181,7 +199,6 @@ object VoskManager {
 
     fun resetState() {
         if (!isInitialized || recognizer == null) return
-
         executor.submit {
             try {
                 recognizer?.reset()

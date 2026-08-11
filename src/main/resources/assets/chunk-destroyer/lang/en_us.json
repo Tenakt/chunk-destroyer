@@ -21,6 +21,19 @@
   "gui.chunk-destroyer.radius": "Destroy Radius",
   "gui.chunk-destroyer.up": "Destroy Height Up",
   "gui.chunk-destroyer.down": "Destroy Height Down",
-  "gui.chunk-destroyer.save": "Save & Close"
+  "gui.chunk-destroyer.save": "Save & Close",
 
+  "gui.chunkdestroyer.title": "Chunk Destroyer Settings",
+  "gui.chunkdestroyer.radius": "Destroy Radius: %s",
+  "gui.chunkdestroyer.radius_up": "Destroy Radius UP: %s",
+  "gui.chunkdestroyer.radius_down": "Destroy Radius Down: %s",
+  "gui.chunkdestroyer.bounce_word": "Bounce on word:",
+  "gui.chunkdestroyer.fly_height": "Fly Height",
+  "gui.chunkdestroyer.save": "Save & Close",
+  "gui.chunkdestroyer.allowed_blocks": "Allowed Blocks",
+  "gui.chunkdestroyer.search_hint": "§7(Search to add, X to remove)",
+  "gui.chunkdestroyer.search_suggestion": "Search block...",
+  "gui.chunkdestroyer.show_active": "Show My Active Blocks",
+  "gui.chunkdestroyer.empty_list": "§7List is empty",
+  "gui.chunkdestroyer.no_blocks": "§cNo blocks found"
 }
