@@ -70,7 +70,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         var downSlider = UIComponents
                 .discreteSlider(Sizing.fixed(180),1,384)
                 .decimalPlaces(0)
-                .setFromDiscreteValue(MyModInitializer.CONFIG.heightUp());
+                .setFromDiscreteValue(MyModInitializer.CONFIG.heightDown());
 
         downSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius_down", value));
 
@@ -121,6 +121,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                     MyModInitializer.CONFIG.levitationHeight(Integer.parseInt(levHeightInput.getText()));
                 } catch (NumberFormatException ignored) {}
 
+                MyModInitializer.CONFIG.save();
+
                 if (MinecraftClient.getInstance().getNetworkHandler() != null) {
                     net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
                             new ConfigSyncPayload(newRadius, newUpRadius, newDownRadius)
@@ -129,7 +131,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
                 VoskManager.reloadRecognizer();
                 this.close();
-            } catch (NumberFormatException ignored) {}
+            } catch (Exception ignored) {
+            }
         });
 
         saveButton.sizing(Sizing.fixed(200), Sizing.fixed(20)).margins(Insets.top(30));

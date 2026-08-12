@@ -25,7 +25,7 @@
 
   "gui.chunkdestroyer.title": "Chunk Destroyer Settings",
   "gui.chunkdestroyer.radius": "Destroy Radius: %s",
-  "gui.chunkdestroyer.radius_up": "Destroy Radius UP: %s",
+  "gui.chunkdestroyer.radius_up": "Destroy Radius Up: %s",
   "gui.chunkdestroyer.radius_down": "Destroy Radius Down: %s",
   "gui.chunkdestroyer.bounce_word": "Bounce on word:",
   "gui.chunkdestroyer.fly_height": "Fly Height",

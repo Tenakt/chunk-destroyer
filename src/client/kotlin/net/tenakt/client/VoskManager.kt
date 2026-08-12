@@ -76,27 +76,60 @@ object VoskManager {
         ruToEnMap.clear()
 
         for (blockId in configBlocks) {
-            val identifier = Identifier.tryParse(if (blockId.contains(":")) blockId else "minecraft:$blockId")
+            // === ГЛАВНОЕ ИСПРАВЛЕНИЕ: МЕНЯЕМ ПРОБЕЛЫ НА ПОДЧЕРКИВАНИЯ ДЛЯ ПАРСЕРА ===
+            val safeBlockId = blockId.replace(" ", "_")
+
+            val identifier = Identifier.tryParse(if (safeBlockId.contains(":")) safeBlockId else "minecraft:$safeBlockId")
 
             if (identifier != null && Registries.BLOCK.containsId(identifier)) {
                 val block = Registries.BLOCK.get(identifier)
-                val cleanBlockId = blockId.replace("minecraft:", "").replace('_', ' ')
+                // Для маппинга нам снова нужны пробелы, поэтому берем очищенную версию
+                val cleanBlockId = safeBlockId.replace("minecraft:", "").replace('_', ' ')
 
                 if (isRussian) {
-                    val ruName = Language.getInstance().get(block.translationKey).lowercase()
-                    grammarList.add(ruName)
+                    val rawRuName = Language.getInstance().get(block.translationKey).lowercase()
 
-                    // 1. Записываем точное название (оно в приоритете)
+                    val cleanRuName = rawRuName.replace("ё", "е")
+                        .replace("-", " ")
+                        .replace(Regex("[^а-яa-z0-9 ]"), "")
+                        .trim()
+
+                    val ruName = cleanRuName.replace(Regex("\\s+"), " ")
+
                     ruToEnMap[ruName] = cleanBlockId
 
-                    // 2. Для отдельных слов добавляем их только в том случае, если они еще не заняты.
-                    // (Это спасет от бага, когда "гладкий камень" ломает обычный "камень")
                     val words = ruName.split(" ")
                     for (w in words) {
+                        if (w.length < 2) continue
+
                         ruToEnMap.putIfAbsent(w, cleanBlockId)
+
+                        if (!grammarList.contains(w)) {
+                            grammarList.add(w)
+                        }
                     }
                 } else {
-                    grammarList.add(cleanBlockId)
+                    val cleanEnName = cleanBlockId.replace("-", " ")
+                        .replace(Regex("[^a-z0-9 ]"), "")
+                        .trim()
+                        .replace(Regex("\\s+"), " ")
+
+                    val words = cleanEnName.split(" ")
+                    for (w in words) {
+                        if (w.length < 2) continue
+                        if (!grammarList.contains(w)) {
+                            grammarList.add(w)
+                        }
+                    }
+                }
+            }
+        }
+        val levWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
+        if (levWord.isNotEmpty()) {
+            val levWords = levWord.split(" ")
+            for (w in levWords) {
+                if (w.length >= 2 && !grammarList.contains(w)) {
+                    grammarList.add(w)
                 }
             }
         }
@@ -143,6 +176,22 @@ object VoskManager {
         println("Recognized raw text: $text")
 
         if (now - lastSentTime < COOLDOWN_MS) return
+
+        val levWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
+
+        if (net.tenakt.MyModInitializer.CONFIG.enableLevitation() && levWord.isNotEmpty()) {
+            if (text == levWord) {
+                println("Levitation word detected: $text")
+                lastSentTime = now
+
+                val height = net.tenakt.MyModInitializer.CONFIG.levitationHeight()
+                net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                    net.tenakt.network.VoiceLevitationPayload(height)
+                )
+
+                return
+            }
+        }
 
         // 1. Идеальное совпадение всей фразы
         val translatedFullText = if (isRussian) ruToEnMap[text] ?: text else text

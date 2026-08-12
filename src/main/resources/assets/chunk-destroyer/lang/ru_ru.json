@@ -25,8 +25,8 @@
 
   "gui.chunkdestroyer.title": "Настройки Chunk Destroyer",
   "gui.chunkdestroyer.radius": "Радиус разрушения: %s",
-  "gui.chunkdestroyer.radius_up": "Радиус разрушения ВВЕРХ: %s",
-  "gui.chunkdestroyer.radius_down": "Радиус разрушения ВНИЗ: %s",
+  "gui.chunkdestroyer.radius_up": "Радиус разрушения вверх: %s",
+  "gui.chunkdestroyer.radius_down": "Радиус разрушения вниз: %s",
   "gui.chunkdestroyer.bounce_word": "Подбросить при слове:",
   "gui.chunkdestroyer.fly_height": "Высота полета",
   "gui.chunkdestroyer.save": "Сохранить и закрыть",
