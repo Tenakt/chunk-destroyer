@@ -2,7 +2,6 @@ package net.tenakt.client
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
 import net.tenakt.network.VoiceDestroyPayload
-import net.tenakt.network.VoiceLevitationPayload
 import su.plo.voice.api.addon.AddonInitializer
 import su.plo.voice.api.addon.InjectPlasmoVoice
 import su.plo.voice.api.addon.annotation.Addon
@@ -47,24 +46,9 @@ class PlasmoVoiceAddon : AddonInitializer {
         VoskManager.processAudio(event.samples) { blockName ->
             println("[ChunkDestroyer] Recognized block: $blockName")
 
-            // Отправляем пакет на удаление блоков (новый формат CustomPayload)
+            // Отправляем пакет на удаление блоков (левитацию отсюда убрали, она обрабатывается в VoskManager)
             val destroyPayload = VoiceDestroyPayload(blockName)
             ClientPlayNetworking.send(destroyPayload)
-
-            // Проверяем, нужно ли подбросить игрока
-            if (net.tenakt.MyModInitializer.CONFIG.enableLevitation()) {
-                val targetWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
-                if (blockName.lowercase().contains(targetWord) || targetWord.contains(blockName.lowercase())) {
-
-                    // Берем высоту из конфига клиента
-                    val h = net.tenakt.MyModInitializer.CONFIG.levitationHeight()
-                    println("[ChunkDestroyer] Sending levitation packet with height: $h")
-
-                    // Отправляем пакет на левитацию (новый формат CustomPayload)
-                    val levitationPayload = VoiceLevitationPayload(h)
-                    ClientPlayNetworking.send(levitationPayload)
-                }
-            }
         }
     }
 }

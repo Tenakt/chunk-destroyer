@@ -76,14 +76,12 @@ object VoskManager {
         ruToEnMap.clear()
 
         for (blockId in configBlocks) {
-            // === ГЛАВНОЕ ИСПРАВЛЕНИЕ: МЕНЯЕМ ПРОБЕЛЫ НА ПОДЧЕРКИВАНИЯ ДЛЯ ПАРСЕРА ===
             val safeBlockId = blockId.replace(" ", "_")
 
             val identifier = Identifier.tryParse(if (safeBlockId.contains(":")) safeBlockId else "minecraft:$safeBlockId")
 
             if (identifier != null && Registries.BLOCK.containsId(identifier)) {
                 val block = Registries.BLOCK.get(identifier)
-                // Для маппинга нам снова нужны пробелы, поэтому берем очищенную версию
                 val cleanBlockId = safeBlockId.replace("minecraft:", "").replace('_', ' ')
 
                 if (isRussian) {
@@ -96,13 +94,22 @@ object VoskManager {
 
                     val ruName = cleanRuName.replace(Regex("\\s+"), " ")
 
+                    // 1. Привязываем ПОЛНОЕ название (например, "гладкий камень" -> "smooth stone")
                     ruToEnMap[ruName] = cleanBlockId
+
+                    // === 2. СИСТЕМА СИНОНИМОВ ===
+                    // Если блок - grass_block (дёрн), добавляем синоним "блок травы"
+                    if (cleanBlockId == "grass block") {
+                        ruToEnMap["блок травы"] = cleanBlockId
+
+                        // Добавляем слова синонима в словарь микрофона, чтобы он их выучил
+                        if (!grammarList.contains("блок")) grammarList.add("блок")
+                        if (!grammarList.contains("травы")) grammarList.add("травы")
+                    }
 
                     val words = ruName.split(" ")
                     for (w in words) {
                         if (w.length < 2) continue
-
-                        ruToEnMap.putIfAbsent(w, cleanBlockId)
 
                         if (!grammarList.contains(w)) {
                             grammarList.add(w)
@@ -124,6 +131,7 @@ object VoskManager {
                 }
             }
         }
+
         val levWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
         if (levWord.isNotEmpty()) {
             val levWords = levWord.split(" ")
@@ -168,6 +176,7 @@ object VoskManager {
         val textMatch = """"text"\s*:\s*"([^"]+)"""".toRegex().find(json)
             ?: """"partial"\s*:\s*"([^"]+)"""".toRegex().find(json)
 
+        val rawText = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
         val text = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
 
         if (text.isEmpty() || text == lastRecognized) return
