@@ -14,7 +14,6 @@ import net.minecraft.util.Identifier;
 import net.tenakt.MyModInitializer;
 import net.tenakt.network.ConfigSyncPayload;
 import org.jetbrains.annotations.NotNull;
-import io.wispforest.owo.ui.component.DiscreteSliderComponent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,12 +21,10 @@ import java.util.stream.Collectors;
 
 public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
-    // Список блоков, которые сейчас выбраны (активны для удаления)
     private List<String> activeBlocks = new ArrayList<>(MyModInitializer.CONFIG.allowedBlocks());
     private FlowLayout blockListContainer;
     private TextBoxComponent searchInput;
 
-    // Режим отображения: true — показываем только выбранные блоки, false — результаты поиска
     private boolean isShowingSearchResults = false;
     private List<String> searchResults = new ArrayList<>();
 
@@ -43,10 +40,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         rootComponent.padding(Insets.of(15));
 
         // ==========================================
-        // ЛЕВАЯ КОЛОНКА (Настройки)
+        // ЛЕВАЯ КОЛОНКА
         // ==========================================
-
-        // Radius Settings
         var leftColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         leftColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
@@ -57,30 +52,30 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 .discreteSlider(Sizing.fixed(180), 1, 128)
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.destroyRadius());
-
         radiusSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius", value));
 
         var upSlider = UIComponents
-                .discreteSlider(Sizing.fixed(180),1,384)
+                .discreteSlider(Sizing.fixed(180), 1, 384)
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.heightUp());
-
         upSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius_up", value));
 
         var downSlider = UIComponents
-                .discreteSlider(Sizing.fixed(180),1,384)
+                .discreteSlider(Sizing.fixed(180), 1, 384)
                 .decimalPlaces(0)
                 .setFromDiscreteValue(MyModInitializer.CONFIG.heightDown());
-
         downSlider.message(value -> Text.translatable("gui.chunkdestroyer.radius_down", value));
 
         leftColumn.child(radiusSlider);
         leftColumn.child(upSlider);
         leftColumn.child(downSlider);
 
-        // === СТРОКА С ГАЛОЧКОЙ И СЛОВОМ ПОДБРОСА ===
-        var levRow = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
-        levRow.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.top(12).add(0, 8, 0, 0));
+        // ИСПРАВЛЕНИЕ СЛЕВА: Делаем строку "Подбросить" строго по ширине колонки (fill 100)
+        // и чуть уменьшаем фиксированные размеры полей ввода, чтобы они не вылезали за левый край экрана
+        var levRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        levRow.horizontalAlignment(HorizontalAlignment.CENTER)
+                .verticalAlignment(VerticalAlignment.CENTER)
+                .margins(Insets.top(12).add(0, 8, 0, 0));
 
         boolean currentLev = MyModInitializer.CONFIG.enableLevitation();
         var levCheckbox = UIComponents.button(Text.literal(currentLev ? "[✔]" : "[X]"), btn -> {
@@ -88,19 +83,18 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             MyModInitializer.CONFIG.enableLevitation(newState);
             btn.setMessage(Text.literal(newState ? "[✔]" : "[X]"));
         });
-        levCheckbox.sizing(Sizing.fixed(26), Sizing.fixed(20)).margins(Insets.right(6));
+        levCheckbox.sizing(Sizing.fixed(24), Sizing.fixed(20)).margins(Insets.right(4));
 
         var levLabel = UIComponents.label(Text.translatable("gui.chunkdestroyer.bounce_word"));
-        levLabel.margins(Insets.right(6));
+        levLabel.margins(Insets.right(4));
 
-        var levWordInput = UIComponents.textBox(Sizing.fixed(70));
+        var levWordInput = UIComponents.textBox(Sizing.fixed(55)); // Уменьшили с 70 до 55
         levWordInput.text(MyModInitializer.CONFIG.levitationWord());
 
         levRow.child(levCheckbox).child(levLabel).child(levWordInput);
         leftColumn.child(levRow);
 
-        // Высота подброса
-        var levHeightInput = UIComponents.textBox(Sizing.fixed(60));
+        var levHeightInput = UIComponents.textBox(Sizing.fixed(55)); // Уменьшили с 60 до 55
         levHeightInput.text(String.valueOf(MyModInitializer.CONFIG.levitationHeight()));
         leftColumn.child(createInputRow(Text.translatable("gui.chunkdestroyer.fly_height"), levHeightInput));
 
@@ -115,7 +109,6 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 MyModInitializer.CONFIG.heightDown(newDownRadius);
 
                 MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(activeBlocks));
-
                 MyModInitializer.CONFIG.levitationWord(levWordInput.getText().trim().toLowerCase());
                 try {
                     MyModInitializer.CONFIG.levitationHeight(Integer.parseInt(levHeightInput.getText()));
@@ -128,18 +121,16 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                             new ConfigSyncPayload(newRadius, newUpRadius, newDownRadius)
                     );
                 }
-
-                VoskManager.reloadRecognizer();
                 this.close();
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         });
 
-        saveButton.sizing(Sizing.fixed(200), Sizing.fixed(20)).margins(Insets.top(30));
+        saveButton.sizing(Sizing.fixed(180), Sizing.fixed(20)).margins(Insets.top(30));
         leftColumn.child(saveButton);
 
+
         // ==========================================
-        // ПРАВАЯ КОЛОНКА (Список блоков и Поиск)
+        // ПРАВАЯ КОЛОНКА
         // ==========================================
         var rightColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         rightColumn.horizontalAlignment(HorizontalAlignment.CENTER);
@@ -150,28 +141,22 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         var warningLabel = UIComponents.label(Text.translatable("gui.chunkdestroyer.search_hint"));
         rightColumn.child(warningLabel.margins(Insets.bottom(8)));
 
-        // Контейнер списка со скроллом
         blockListContainer = UIContainers.verticalFlow(Sizing.fill(100), Sizing.content());
         blockListContainer.padding(Insets.of(3));
 
-        var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fill(75), blockListContainer);
+        var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fill(60), blockListContainer);
         scroll.surface(Surface.DARK_PANEL);
         rightColumn.child(scroll);
 
-        // Строка поиска
         var searchRow = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        searchRow.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.top(10));
+        searchRow.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.top(8));
 
-        searchInput = UIComponents.textBox(Sizing.fill(85));
+        // ИСПРАВЛЕНИЕ ШИРИНЫ ПОИСКА: Снизили до 75%, чтобы квадратик лупы [🔍] всегда 100% влезал на экран
+        searchInput = UIComponents.textBox(Sizing.fill(75));
         searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
-
-        // === ИСПРАВЛЕНИЕ 1: Убираем наложение текста-подсказки при вводе ===
         searchInput.setChangedListener(text -> {
-            if (text.isEmpty()) {
-                searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
-            } else {
-                searchInput.setSuggestion("");
-            }
+            if (text.isEmpty()) searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
+            else searchInput.setSuggestion("");
         });
 
         var searchBtn = UIComponents.button(Text.literal("🔍"), button -> {
@@ -180,25 +165,15 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 isShowingSearchResults = false;
             } else {
                 isShowingSearchResults = true;
-
-                // ОБНОВЛЕННАЯ ЛОГИКА ПОИСКА (Русский + Английский)
                 searchResults = Registries.BLOCK.getIds().stream()
                         .filter(id -> {
                             net.minecraft.block.Block block = Registries.BLOCK.get(id);
-
-                            // Английское название (например, "stone")
                             String englishName = id.getPath().replace('_', ' ').toLowerCase();
-
-                            // Локализованное название из игры (например, "камень")
                             String localizedName = net.minecraft.util.Language.getInstance()
                                     .get(block.getTranslationKey()).toLowerCase();
-
-                            // Ищем совпадение в любом из вариантов
-                            return englishName.contains(query) ||
-                                    localizedName.contains(query) ||
-                                    id.toString().toLowerCase().contains(query);
+                            return englishName.contains(query) || localizedName.contains(query) || id.toString().toLowerCase().contains(query);
                         })
-                        .map(id -> id.getPath().replace('_', ' ')) // В список сохраняем только системный ID
+                        .map(id -> id.getPath().replace('_', ' '))
                         .distinct()
                         .sorted()
                         .collect(Collectors.toList());
@@ -206,20 +181,17 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             refreshBlockList();
         });
 
-        searchBtn.sizing(Sizing.fixed(24), Sizing.fixed(24)).margins(Insets.left(5));
-
+        searchBtn.sizing(Sizing.fixed(24), Sizing.fixed(24)).margins(Insets.left(4));
         searchRow.child(searchInput).child(searchBtn);
         rightColumn.child(searchRow);
 
-        // Кнопка возврата к списку
         var backToListBtn = UIComponents.button(Text.translatable("gui.chunkdestroyer.show_active"), button -> {
             isShowingSearchResults = false;
             searchInput.text("");
-            // При очистке поиска возвращаем подсказку
             searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
             refreshBlockList();
         });
-        backToListBtn.sizing(Sizing.fill(100), Sizing.fixed(18)).margins(Insets.top(4));
+        backToListBtn.sizing(Sizing.fill(100), Sizing.fixed(20)).margins(Insets.top(4));
         rightColumn.child(backToListBtn);
 
         rootComponent.child(leftColumn).child(rightColumn);
@@ -227,10 +199,10 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private FlowLayout createInputRow(Text text, Object inputObj) {
-        var row = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
-        row.verticalAlignment(VerticalAlignment.CENTER).margins(Insets.bottom(8));
+        var row = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        row.horizontalAlignment(HorizontalAlignment.CENTER).verticalAlignment(VerticalAlignment.CENTER).margins(Insets.bottom(8));
         var label = UIComponents.label(text);
-        label.margins(Insets.right(8));
+        label.margins(Insets.right(6));
         row.child(label).child((io.wispforest.owo.ui.core.UIComponent) inputObj);
         return row;
     }
@@ -242,13 +214,10 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         List<String> itemsToDisplay = isShowingSearchResults ? searchResults : activeBlocks;
 
         if (itemsToDisplay.isEmpty()) {
-            // ПЕРЕВОД ПУСТЫХ СПИСКОВ
             Text emptyText = isShowingSearchResults
                     ? Text.translatable("gui.chunkdestroyer.no_blocks")
                     : Text.translatable("gui.chunkdestroyer.empty_list");
-
-            var emptyLabel = UIComponents.label(emptyText);
-            blockListContainer.child(emptyLabel);
+            blockListContainer.child(UIComponents.label(emptyText));
             return;
         }
 
@@ -260,20 +229,18 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             row.margins(Insets.bottom(3));
 
             Text displayComponent = Text.literal(block);
-
-            // === ИСПРАВЛЕНИЕ 2: Возвращаем подчеркивания для корректного поиска ID (чтобы "smooth stone" переводился) ===
             String fixedForId = block.replace(' ', '_');
             String idString = fixedForId.contains(":") ? fixedForId : "minecraft:" + fixedForId;
             Identifier blockId = Identifier.tryParse(idString);
 
             if (blockId != null && Registries.BLOCK.containsId(blockId)) {
-                // Выводим красивое русское (или английское) имя блока в интерфейс
                 displayComponent = Text.translatable(Registries.BLOCK.get(blockId).getTranslationKey());
             }
 
             var label = UIComponents.label(displayComponent);
 
-            label.sizing(Sizing.fill(80), Sizing.content());
+            // ИСПРАВЛЕНИЕ: Ширина лейбла 75%, чтобы кнопка сбоку не вываливалась за экран при узком окне!
+            label.sizing(Sizing.fill(75), Sizing.content());
             label.margins(Insets.left(3));
 
             String actionText = isShowingSearchResults ? (activeBlocks.contains(block) ? "✔" : "+") : "X";
@@ -290,7 +257,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 }
             });
 
-            actionBtn.sizing(Sizing.fixed(18), Sizing.fixed(18));
+            actionBtn.sizing(Sizing.fixed(20), Sizing.fixed(20));
 
             row.child(label).child(actionBtn);
             blockListContainer.child(row);
