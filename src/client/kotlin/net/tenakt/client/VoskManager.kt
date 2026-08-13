@@ -78,33 +78,46 @@ object VoskManager {
         for (blockId in configBlocks) {
             val safeBlockId = blockId.replace(" ", "_")
 
-            val identifier = Identifier.tryParse(if (safeBlockId.contains(":")) safeBlockId else "minecraft:$safeBlockId")
+            val identifier = Identifier.tryParse(
+                if (safeBlockId.contains(":")) safeBlockId else "minecraft:$safeBlockId"
+            )
 
             if (identifier != null && Registries.BLOCK.containsId(identifier)) {
                 val block = Registries.BLOCK.get(identifier)
-                val cleanBlockId = safeBlockId.replace("minecraft:", "").replace('_', ' ')
+                val cleanBlockId = safeBlockId
+                    .replace("minecraft:", "")
+                    .replace('_', ' ')
 
                 if (isRussian) {
-                    val rawRuName = Language.getInstance().get(block.translationKey).lowercase()
+                    val rawRuName = Language.getInstance()
+                        .get(block.translationKey)
+                        .lowercase()
 
-                    val cleanRuName = rawRuName.replace("ё", "е")
+                    val cleanRuName = rawRuName
+                        .replace("ё", "е")
                         .replace("-", " ")
                         .replace(Regex("[^а-яa-z0-9 ]"), "")
                         .trim()
 
                     val ruName = cleanRuName.replace(Regex("\\s+"), " ")
 
-                    // 1. Привязываем ПОЛНОЕ название (например, "гладкий камень" -> "smooth stone")
+                    // Полное русское название блока -> Minecraft ID
                     ruToEnMap[ruName] = cleanBlockId
 
-                    // === 2. СИСТЕМА СИНОНИМОВ ===
-                    // Если блок - grass_block (дёрн), добавляем синоним "блок травы"
+                    // Синоним для grass block
                     if (cleanBlockId == "grass block") {
                         ruToEnMap["блок травы"] = cleanBlockId
 
-                        // Добавляем слова синонима в словарь микрофона, чтобы он их выучил
                         if (!grammarList.contains("блок")) grammarList.add("блок")
                         if (!grammarList.contains("травы")) grammarList.add("травы")
+                    }
+
+                    // Синоним для netherrack
+                    if (cleanBlockId == "netherrack") {
+                        ruToEnMap["адский камень"] = cleanBlockId
+
+                        if (!grammarList.contains("адский")) grammarList.add("адский")
+                        if (!grammarList.contains("камень")) grammarList.add("камень")
                     }
 
                     val words = ruName.split(" ")
@@ -116,14 +129,17 @@ object VoskManager {
                         }
                     }
                 } else {
-                    val cleanEnName = cleanBlockId.replace("-", " ")
+                    val cleanEnName = cleanBlockId
+                        .replace("-", " ")
                         .replace(Regex("[^a-z0-9 ]"), "")
                         .trim()
                         .replace(Regex("\\s+"), " ")
 
                     val words = cleanEnName.split(" ")
+
                     for (w in words) {
                         if (w.length < 2) continue
+
                         if (!grammarList.contains(w)) {
                             grammarList.add(w)
                         }
@@ -132,9 +148,14 @@ object VoskManager {
             }
         }
 
-        val levWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
+        val levWord = net.tenakt.MyModInitializer.CONFIG
+            .levitationWord()
+            .lowercase()
+            .trim()
+
         if (levWord.isNotEmpty()) {
             val levWords = levWord.split(" ")
+
             for (w in levWords) {
                 if (w.length >= 2 && !grammarList.contains(w)) {
                     grammarList.add(w)
@@ -146,7 +167,11 @@ object VoskManager {
             grammarList.add("[unk]")
         }
 
-        return grammarList.joinToString(separator = "\", \"", prefix = "[\"", postfix = "\"]")
+        return grammarList.joinToString(
+            separator = "\", \"",
+            prefix = "[\"",
+            postfix = "\"]"
+        )
     }
 
     fun processAudio(pcmData: ShortArray, onBlockRecognized: (String) -> Unit) {
@@ -176,7 +201,6 @@ object VoskManager {
         val textMatch = """"text"\s*:\s*"([^"]+)"""".toRegex().find(json)
             ?: """"partial"\s*:\s*"([^"]+)"""".toRegex().find(json)
 
-        val rawText = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
         val text = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
 
         if (text.isEmpty() || text == lastRecognized) return
@@ -186,7 +210,10 @@ object VoskManager {
 
         if (now - lastSentTime < COOLDOWN_MS) return
 
-        val levWord = net.tenakt.MyModInitializer.CONFIG.levitationWord().lowercase().trim()
+        val levWord = net.tenakt.MyModInitializer.CONFIG
+            .levitationWord()
+            .lowercase()
+            .trim()
 
         if (net.tenakt.MyModInitializer.CONFIG.enableLevitation() && levWord.isNotEmpty()) {
             if (text == levWord) {
@@ -194,6 +221,7 @@ object VoskManager {
                 lastSentTime = now
 
                 val height = net.tenakt.MyModInitializer.CONFIG.levitationHeight()
+
                 net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
                     net.tenakt.network.VoiceLevitationPayload(height)
                 )
@@ -213,11 +241,12 @@ object VoskManager {
             return
         }
 
-        // 2. Ищем многословный блок ВНУТРИ текста (например, сказал "удали гладкий камень пожалуйста")
+        // 2. Ищем многословный блок ВНУТРИ текста
         if (isRussian) {
             for ((ruName, enName) in ruToEnMap) {
                 if (ruName.contains(" ") && text.contains(ruName)) {
                     val phraseId = enName.replace(" ", "_")
+
                     if (checkBlock(phraseId)) {
                         println("Block found (Phrase in text): $phraseId")
                         lastSentTime = now
@@ -234,8 +263,6 @@ object VoskManager {
         for (word in words) {
             val translatedWord = if (isRussian) ruToEnMap[word] ?: word else word
 
-            // ВАЖНОЕ ИСПРАВЛЕНИЕ: Сначала меняем пробел на подчеркивание (smooth_stone),
-            // и только потом удаляем лишние символы!
             val withUnderscores = translatedWord.replace(" ", "_")
             val cleanWord = withUnderscores.replace(Regex("[^a-zа-яё0-9_]"), "")
 
@@ -257,6 +284,7 @@ object VoskManager {
 
     fun resetState() {
         if (!isInitialized || recognizer == null) return
+
         executor.submit {
             try {
                 recognizer?.reset()
