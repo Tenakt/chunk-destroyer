@@ -296,9 +296,18 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             Identifier blockId = Identifier.tryParse(idString);
 
             if (blockId != null && Registries.BLOCK.containsId(blockId)) {
-                displayComponent = Text.translatable(
-                        Registries.BLOCK.get(blockId).getTranslationKey()
-                );
+                String blockPath = blockId.getPath().toLowerCase();
+                
+                // Voice recognition aliases: show these names for voice commands
+                if (blockPath.equals("dirt")) {
+                    displayComponent = Text.literal("блок травы");
+                } else if (blockPath.equals("netherrack")) {
+                    displayComponent = Text.literal("адский камень");
+                } else {
+                    displayComponent = Text.translatable(
+                            Registries.BLOCK.get(blockId).getTranslationKey()
+                    );
+                }
             }
 
             var label = UIComponents.label(displayComponent);
