@@ -256,6 +256,13 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
         // Try matching localized names or voice aliases
         String lower = normalizeRus(display.toLowerCase());
+
+        // Special-case: map common user-entered Russian name 'дерн'/'дёрн' to dirt
+        if (lower.equals("дерн")) {
+            Identifier dirtId = Identifier.tryParse("minecraft:dirt");
+            if (dirtId != null && Registries.BLOCK.containsId(dirtId)) return dirtId;
+        }
+
         for (Identifier id : Registries.BLOCK.getIds()) {
             net.minecraft.block.Block block = Registries.BLOCK.get(id);
             String localized = normalizeRus(net.minecraft.util.Language.getInstance().get(block.getTranslationKey()).toLowerCase());
