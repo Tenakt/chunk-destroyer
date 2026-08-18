@@ -337,7 +337,15 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
         blockListContainer.clearChildren();
 
-        List<String> itemsToDisplay = isShowingSearchResults ? searchResults : activeBlocks;
+        List<String> rawItems = isShowingSearchResults ? searchResults : activeBlocks;
+        List<String> itemsToDisplay = new ArrayList<>();
+
+        // Normalize displayed items to canonical identifiers to avoid duplicates like "дерн" + "dirt"
+        for (String s : rawItems) {
+            Identifier id = resolveIdFromDisplayString(s);
+            String canonical = id != null ? id.getPath().replace('_', ' ') : s;
+            if (!itemsToDisplay.contains(canonical)) itemsToDisplay.add(canonical);
+        }
 
         if (itemsToDisplay.isEmpty()) {
             Text emptyText = isShowingSearchResults
