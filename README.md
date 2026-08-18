@@ -13,10 +13,10 @@ A chaotic and fun Minecraft Fabric mod designed for co-op challenges, survival r
 
 * 🗣 **Voice-Activated Block Destruction:** Destroy blocks around you by simply saying their names out loud into your microphone (requires **Plasma Voice**).
 * 🌐 **Language Support:**
-  * 🇬🇧 **English** — Supported now!
-  * 🇷🇺 **Russian** — Coming in the very next update!
+  * **English** — Supported now!
+  * **Russian** — Coming in the very next update!
   * 🌍 **Other Languages** — Planned based on community requests in our Discord.
-* 🖥 **In-Game GUI:** Currently in **Early Access / WIP (Work in Progress)**. Expect improvements in upcoming releases!
+* 🖥 **In-Game GUI:** Currently in **Early Access**. Expect improvements in upcoming releases!
 * ⚡ **Co-op Focused:** Ideal for competitive survival, mini-games, and stream events.
 
 ---
@@ -47,8 +47,8 @@ Make sure you have the following mods installed:
 
 ## 🔮 Roadmap
 
-- [ ] 🇷🇺 Russian language support for voice recognition
-- [ ] 🎨 Complete and polish the In-Game GUI
+- [✅] 🇷🇺 Russian language support for voice recognition
+- [✅] 🎨 Complete and polish the In-Game GUI (Currently in Early Access)
 - [ ] 🌍 More voice language options (based on Discord feedback)
 - [ ] ⚙️ Additional customization settings for block destruction radius and effects
 
@@ -59,6 +59,7 @@ Make sure you have the following mods installed:
 Have ideas, bug reports, or language requests? Join the discussion!
 * 👾 **Discord Server:** [Join our Discord](https://discord.gg/MbFPYuXgvh)
 * 🌐 **Modrinth Page:** [Chunk Destroyer on Modrinth](https://modrinth.com/mod/chunk-destroyer-tenakt)
+* 🌐 **CurseForge Page:** [Chunk Destroyer on CurseForge](https://www.curseforge.com/minecraft/mc-mods/chunk-destroyer)
 
 ### 👑 Team
 * **Tenakt** — Owner & Developer
