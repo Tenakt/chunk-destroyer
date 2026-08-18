@@ -358,19 +358,15 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             label.sizing(Sizing.fill(75), Sizing.content());
             label.margins(Insets.left(3));
 
-            boolean isActive = false;
             String checkCanonical = canonical != null ? canonical : block;
             String checkVoice = voiceAlias != null ? voiceAlias : "";
             String checkLocalized = localizedName != null ? localizedName : "";
 
-            for (String s : activeBlocks) {
-                if (s.equalsIgnoreCase(checkCanonical)
-                        || s.equalsIgnoreCase(checkVoice)
-                        || s.equalsIgnoreCase(checkLocalized)) {
-                    isActive = true;
-                    break;
-                }
-            }
+            final boolean isActive = activeBlocks.stream().anyMatch(s ->
+                    s.equalsIgnoreCase(checkCanonical)
+                            || s.equalsIgnoreCase(checkVoice)
+                            || s.equalsIgnoreCase(checkLocalized)
+            );
 
             String actionText = isShowingSearchResults
                     ? (isActive ? "✔" : "+")
