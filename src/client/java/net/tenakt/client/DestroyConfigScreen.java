@@ -218,6 +218,17 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         return row;
     }
 
+    private String getVoiceAlias(String blockPath) {
+        if (blockPath.equals("dirt")) return "блок травы";
+        if (blockPath.equals("netherrack")) return "адский камень";
+        return null;
+    }
+
+    private String capitalizeFirst(String str) {
+        if (str == null || str.isEmpty()) return str;
+        return str.substring(0, 1).toUpperCase() + str.substring(1);
+    }
+
     private List<String> performSearch(String query) {
         List<Identifier> candidates = Registries.BLOCK.getIds().stream()
                 .filter(id -> {
@@ -225,9 +236,12 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                     String englishName = id.getPath().replace('_', ' ').toLowerCase();
                     String localizedName = net.minecraft.util.Language.getInstance()
                             .get(block.getTranslationKey()).toLowerCase();
+                    String voiceAlias = getVoiceAlias(id.getPath());
+                    
                     return englishName.contains(query)
                             || localizedName.contains(query)
-                            || id.toString().toLowerCase().contains(query);
+                            || id.toString().toLowerCase().contains(query)
+                            || (voiceAlias != null && voiceAlias.contains(query));
                 })
                 .distinct()
                 .collect(Collectors.toList());
@@ -243,8 +257,11 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 String bLocalized = net.minecraft.util.Language.getInstance()
                         .get(Registries.BLOCK.get(b).getTranslationKey()).toLowerCase();
 
-                int scoreA = scoreFor(aPath, aLocalized, query, a);
-                int scoreB = scoreFor(bPath, bLocalized, query, b);
+                String aVoiceAlias = getVoiceAlias(a.getPath());
+                String bVoiceAlias = getVoiceAlias(b.getPath());
+
+                int scoreA = scoreFor(aPath, aLocalized, aVoiceAlias, query, a);
+                int scoreB = scoreFor(bPath, bLocalized, bVoiceAlias, query, b);
 
                 if (scoreA != scoreB) return Integer.compare(scoreA, scoreB);
                 // Prefer shorter names then lexicographic
@@ -252,10 +269,10 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 return aPath.compareTo(bPath);
             }
 
-            private int scoreFor(String path, String localized, String q, Identifier id) {
-                if (path.equals(q) || localized.equals(q) || id.getPath().equals(q)) return 0; // exact
-                if (path.startsWith(q) || localized.startsWith(q)) return 1; // starts with
-                if (path.contains(q) || localized.contains(q) || id.toString().toLowerCase().contains(q)) return 2; // contains
+            private int scoreFor(String path, String localized, String voiceAlias, String q, Identifier id) {
+                if (path.equals(q) || localized.equals(q) || (voiceAlias != null && voiceAlias.equals(q)) || id.getPath().equals(q)) return 0; // exact
+                if (path.startsWith(q) || localized.startsWith(q) || (voiceAlias != null && voiceAlias.startsWith(q))) return 1; // starts with
+                if (path.contains(q) || localized.contains(q) || (voiceAlias != null && voiceAlias.contains(q)) || id.toString().toLowerCase().contains(q)) return 2; // contains
                 return 3;
             }
         });
@@ -299,10 +316,9 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 String blockPath = blockId.getPath().toLowerCase();
                 
                 // Voice recognition aliases: show these names for voice commands
-                if (blockPath.equals("dirt")) {
-                    displayComponent = Text.literal("блок травы");
-                } else if (blockPath.equals("netherrack")) {
-                    displayComponent = Text.literal("адский камень");
+                String voiceAlias = getVoiceAlias(blockPath);
+                if (voiceAlias != null) {
+                    displayComponent = Text.literal(capitalizeFirst(voiceAlias));
                 } else {
                     displayComponent = Text.translatable(
                             Registries.BLOCK.get(blockId).getTranslationKey()
