@@ -229,6 +229,25 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
+    private Identifier resolveIdFromDisplayString(String display) {
+        // Try as id path
+        String fixed = display.replace(' ', '_');
+        String idString = fixed.contains(":") ? fixed : "minecraft:" + fixed;
+        Identifier maybe = Identifier.tryParse(idString);
+        if (maybe != null && Registries.BLOCK.containsId(maybe)) return maybe;
+
+        // Try matching localized names or voice aliases
+        String lower = display.toLowerCase();
+        for (Identifier id : Registries.BLOCK.getIds()) {
+            net.minecraft.block.Block block = Registries.BLOCK.get(id);
+            String localized = net.minecraft.util.Language.getInstance().get(block.getTranslationKey()).toLowerCase();
+            String voice = getVoiceAlias(id.getPath());
+            if (localized.equals(lower) || (voice != null && voice.equalsIgnoreCase(lower))) return id;
+        }
+
+        return null;
+    }
+
     private List<String> performSearch(String query) {
         List<Identifier> candidates = Registries.BLOCK.getIds().stream()
                 .filter(id -> {
@@ -306,17 +325,23 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             row.padding(Insets.of(3));
             row.margins(Insets.bottom(3));
 
+            // Resolve the Identifier for this displayed item. It may be an id ("dirt"),
+            // a localized name ("Дёрн"), or a voice alias ("блок травы").
+            Identifier blockId = resolveIdFromDisplayString(block);
+
             Text displayComponent = Text.literal(block);
 
-            String fixedForId = block.replace(' ', '_');
-            String idString = fixedForId.contains(":") ? fixedForId : "minecraft:" + fixedForId;
-            Identifier blockId = Identifier.tryParse(idString);
+            String canonical = null;
+            String voiceAlias = null;
+            String localizedName = null;
 
             if (blockId != null && Registries.BLOCK.containsId(blockId)) {
+                canonical = blockId.getPath().replace('_', ' ');
                 String blockPath = blockId.getPath().toLowerCase();
-                
-                // Voice recognition aliases: show these names for voice commands
-                String voiceAlias = getVoiceAlias(blockPath);
+                voiceAlias = getVoiceAlias(blockPath);
+                localizedName = net.minecraft.util.Language.getInstance()
+                        .get(Registries.BLOCK.get(blockId).getTranslationKey());
+
                 if (voiceAlias != null) {
                     displayComponent = Text.literal(capitalizeFirst(voiceAlias));
                 } else {
@@ -324,24 +349,46 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                             Registries.BLOCK.get(blockId).getTranslationKey()
                     );
                 }
+            } else {
+                // If we couldn't resolve an id, show the raw text
+                displayComponent = Text.literal(block);
             }
 
             var label = UIComponents.label(displayComponent);
             label.sizing(Sizing.fill(75), Sizing.content());
             label.margins(Insets.left(3));
 
+            boolean isActive = false;
+            String checkCanonical = canonical != null ? canonical : block;
+            String checkVoice = voiceAlias != null ? voiceAlias : "";
+            String checkLocalized = localizedName != null ? localizedName : "";
+
+            for (String s : activeBlocks) {
+                if (s.equalsIgnoreCase(checkCanonical)
+                        || s.equalsIgnoreCase(checkVoice)
+                        || s.equalsIgnoreCase(checkLocalized)) {
+                    isActive = true;
+                    break;
+                }
+            }
+
             String actionText = isShowingSearchResults
-                    ? (activeBlocks.contains(block) ? "✔" : "+")
+                    ? (isActive ? "✔" : "+")
                     : "X";
 
             var actionBtn = UIComponents.button(Text.literal(actionText), btn -> {
                 if (isShowingSearchResults) {
-                    if (!activeBlocks.contains(block)) {
-                        activeBlocks.add(block);
+                    if (!isActive) {
+                        // Add canonical id string (e.g., "dirt") so storage is consistent
+                        if (canonical != null) activeBlocks.add(canonical);
+                        else activeBlocks.add(block);
                         refreshBlockList();
                     }
                 } else {
-                    activeBlocks.remove(block);
+                    // Removing: remove any matching variants
+                    activeBlocks.removeIf(s -> s.equalsIgnoreCase(checkCanonical)
+                            || s.equalsIgnoreCase(checkVoice)
+                            || s.equalsIgnoreCase(checkLocalized));
                     refreshBlockList();
                 }
             });
