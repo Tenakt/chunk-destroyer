@@ -92,7 +92,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         levHeightInput.text(String.valueOf(MyModInitializer.CONFIG.levitationHeight()));
         leftColumn.child(createInputRow(Text.translatable("gui.chunkdestroyer.fly_height"), levHeightInput));
 
-        // Сохранение
+        // Normalize activeBlocks before saving
         var saveButton = UIComponents.button(Text.translatable("gui.chunkdestroyer.save"), button -> {
             try {
                 int newRadius = (int) radiusSlider.discreteValue();
@@ -102,7 +102,20 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 MyModInitializer.CONFIG.destroyRadius(newRadius);
                 MyModInitializer.CONFIG.heightUp(newUpRadius);
                 MyModInitializer.CONFIG.heightDown(newDownRadius);
-                MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(activeBlocks));
+
+                // Normalize stored block identifiers to canonical forms
+                List<String> normalized = new ArrayList<>();
+                for (String s : activeBlocks) {
+                    Identifier id = resolveIdFromDisplayString(s);
+                    if (id != null) {
+                        String canonical = id.getPath().replace('_', ' ');
+                        if (!normalized.contains(canonical)) normalized.add(canonical);
+                    } else if (!normalized.contains(s)) {
+                        normalized.add(s);
+                    }
+                }
+
+                MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(normalized));
                 MyModInitializer.CONFIG.levitationWord(levWordInput.getText().trim().toLowerCase());
 
                 try {
@@ -229,6 +242,11 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
+    private String normalizeRus(String s) {
+        if (s == null) return null;
+        return s.toLowerCase().replace('ё', 'е').replaceAll("\\s+", " ").trim();
+    }
+
     private Identifier resolveIdFromDisplayString(String display) {
         // Try as id path
         String fixed = display.replace(' ', '_');
@@ -237,12 +255,17 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         if (maybe != null && Registries.BLOCK.containsId(maybe)) return maybe;
 
         // Try matching localized names or voice aliases
-        String lower = display.toLowerCase();
+        String lower = normalizeRus(display.toLowerCase());
         for (Identifier id : Registries.BLOCK.getIds()) {
             net.minecraft.block.Block block = Registries.BLOCK.get(id);
-            String localized = net.minecraft.util.Language.getInstance().get(block.getTranslationKey()).toLowerCase();
+            String localized = normalizeRus(net.minecraft.util.Language.getInstance().get(block.getTranslationKey()).toLowerCase());
             String voice = getVoiceAlias(id.getPath());
-            if (localized.equals(lower) || (voice != null && voice.equalsIgnoreCase(lower))) return id;
+
+            if (localized.equals(lower) || (voice != null && normalizeRus(voice).equals(lower))) return id;
+
+            // allow 'дерн' matching 'дёрн' by normalized compare
+            if (localized.contains(lower) || lower.contains(localized)) return id;
+            if (voice != null && (normalizeRus(voice).contains(lower) || lower.contains(normalizeRus(voice)))) return id;
         }
 
         return null;
