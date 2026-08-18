@@ -17,6 +17,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.Comparator;
 
 public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
@@ -166,20 +168,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
             String query = text.trim().toLowerCase();
             isShowingSearchResults = true;
-            searchResults = Registries.BLOCK.getIds().stream()
-                    .filter(id -> {
-                        net.minecraft.block.Block block = Registries.BLOCK.get(id);
-                        String englishName = id.getPath().replace('_', ' ').toLowerCase();
-                        String localizedName = net.minecraft.util.Language.getInstance()
-                                .get(block.getTranslationKey()).toLowerCase();
-                        return englishName.contains(query)
-                                || localizedName.contains(query)
-                                || id.toString().toLowerCase().contains(query);
-                    })
-                    .map(id -> id.getPath().replace('_', ' '))
-                    .distinct()
-                    .sorted()
-                    .collect(Collectors.toList());
+            searchResults = performSearch(query);
 
             refreshBlockList();
         });
@@ -191,20 +180,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 isShowingSearchResults = false;
             } else {
                 isShowingSearchResults = true;
-                searchResults = Registries.BLOCK.getIds().stream()
-                        .filter(id -> {
-                            net.minecraft.block.Block block = Registries.BLOCK.get(id);
-                            String englishName = id.getPath().replace('_', ' ').toLowerCase();
-                            String localizedName = net.minecraft.util.Language.getInstance()
-                                    .get(block.getTranslationKey()).toLowerCase();
-                            return englishName.contains(query)
-                                    || localizedName.contains(query)
-                                    || id.toString().toLowerCase().contains(query);
-                        })
-                        .map(id -> id.getPath().replace('_', ' '))
-                        .distinct()
-                        .sorted()
-                        .collect(Collectors.toList());
+                searchResults = performSearch(query);
             }
 
             refreshBlockList();
@@ -240,6 +216,54 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
         row.child(label).child((io.wispforest.owo.ui.core.UIComponent) inputObj);
         return row;
+    }
+
+    private List<String> performSearch(String query) {
+        List<Identifier> candidates = Registries.BLOCK.getIds().stream()
+                .filter(id -> {
+                    net.minecraft.block.Block block = Registries.BLOCK.get(id);
+                    String englishName = id.getPath().replace('_', ' ').toLowerCase();
+                    String localizedName = net.minecraft.util.Language.getInstance()
+                            .get(block.getTranslationKey()).toLowerCase();
+                    return englishName.contains(query)
+                            || localizedName.contains(query)
+                            || id.toString().toLowerCase().contains(query);
+                })
+                .distinct()
+                .collect(Collectors.toList());
+
+        Collections.sort(candidates, new Comparator<Identifier>() {
+            @Override
+            public int compare(Identifier a, Identifier b) {
+                String aPath = a.getPath().replace('_', ' ').toLowerCase();
+                String bPath = b.getPath().replace('_', ' ').toLowerCase();
+
+                String aLocalized = net.minecraft.util.Language.getInstance()
+                        .get(Registries.BLOCK.get(a).getTranslationKey()).toLowerCase();
+                String bLocalized = net.minecraft.util.Language.getInstance()
+                        .get(Registries.BLOCK.get(b).getTranslationKey()).toLowerCase();
+
+                int scoreA = scoreFor(aPath, aLocalized, query, a);
+                int scoreB = scoreFor(bPath, bLocalized, query, b);
+
+                if (scoreA != scoreB) return Integer.compare(scoreA, scoreB);
+                // Prefer shorter names then lexicographic
+                if (aPath.length() != bPath.length()) return Integer.compare(aPath.length(), bPath.length());
+                return aPath.compareTo(bPath);
+            }
+
+            private int scoreFor(String path, String localized, String q, Identifier id) {
+                if (path.equals(q) || localized.equals(q) || id.getPath().equals(q)) return 0; // exact
+                if (path.startsWith(q) || localized.startsWith(q)) return 1; // starts with
+                if (path.contains(q) || localized.contains(q) || id.toString().toLowerCase().contains(q)) return 2; // contains
+                return 3;
+            }
+        });
+
+        return candidates.stream()
+                .map(id -> id.getPath().replace('_', ' '))
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     private void refreshBlockList() {
