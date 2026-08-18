@@ -358,9 +358,9 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             label.sizing(Sizing.fill(75), Sizing.content());
             label.margins(Insets.left(3));
 
-            String checkCanonical = canonical != null ? canonical : block;
-            String checkVoice = voiceAlias != null ? voiceAlias : "";
-            String checkLocalized = localizedName != null ? localizedName : "";
+            final String checkCanonical = canonical != null ? canonical : block;
+            final String checkVoice = voiceAlias != null ? voiceAlias : "";
+            final String checkLocalized = localizedName != null ? localizedName : "";
 
             final boolean isActive = activeBlocks.stream().anyMatch(s ->
                     s.equalsIgnoreCase(checkCanonical)
@@ -372,12 +372,15 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                     ? (isActive ? "✔" : "+")
                     : "X";
 
+            final String canonicalFinal = canonical;
+            final String blockFinal = block;
+
             var actionBtn = UIComponents.button(Text.literal(actionText), btn -> {
                 if (isShowingSearchResults) {
                     if (!isActive) {
                         // Add canonical id string (e.g., "dirt") so storage is consistent
-                        if (canonical != null) activeBlocks.add(canonical);
-                        else activeBlocks.add(block);
+                        if (canonicalFinal != null) activeBlocks.add(canonicalFinal);
+                        else activeBlocks.add(blockFinal);
                         refreshBlockList();
                     }
                 } else {
