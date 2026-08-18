@@ -216,7 +216,8 @@ object VoskManager {
             .trim()
 
         if (net.tenakt.MyModInitializer.CONFIG.enableLevitation() && levWord.isNotEmpty()) {
-            if (text == levWord) {
+            // Trigger levitation if the recognized text equals or contains the levitation word (supports multi-word phrases)
+            if (text == levWord || text.contains(levWord)) {
                 println("Levitation word detected: $text")
                 lastSentTime = now
 
@@ -226,7 +227,7 @@ object VoskManager {
                     net.tenakt.network.VoiceLevitationPayload(height)
                 )
 
-                return
+                // Continue processing — allow block detection to run so both levitation and destruction can occur together
             }
         }
 
