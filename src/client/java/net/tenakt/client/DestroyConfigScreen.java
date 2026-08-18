@@ -152,12 +152,36 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
         searchInput = UIComponents.textBox(Sizing.fill(75));
         searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
+        // Real-time search: update results as user types
         searchInput.setChangedListener(text -> {
             if (text.isEmpty()) {
                 searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
+                isShowingSearchResults = false;
+                searchResults = new ArrayList<>();
+                refreshBlockList();
+                return;
             } else {
                 searchInput.setSuggestion("");
             }
+
+            String query = text.trim().toLowerCase();
+            isShowingSearchResults = true;
+            searchResults = Registries.BLOCK.getIds().stream()
+                    .filter(id -> {
+                        net.minecraft.block.Block block = Registries.BLOCK.get(id);
+                        String englishName = id.getPath().replace('_', ' ').toLowerCase();
+                        String localizedName = net.minecraft.util.Language.getInstance()
+                                .get(block.getTranslationKey()).toLowerCase();
+                        return englishName.contains(query)
+                                || localizedName.contains(query)
+                                || id.toString().toLowerCase().contains(query);
+                    })
+                    .map(id -> id.getPath().replace('_', ' '))
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            refreshBlockList();
         });
 
         var searchBtn = UIComponents.button(Text.literal("🔍"), button -> {
