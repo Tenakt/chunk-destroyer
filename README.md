@@ -13,8 +13,8 @@ A chaotic and fun Minecraft Fabric mod designed for co-op challenges, survival r
 
 * 🗣 **Voice-Activated Block Destruction:** Destroy blocks around you by simply saying their names out loud into your microphone (requires **Plasma Voice**).
 * 🌐 **Language Support:**
-  * **English** — Supported now!
-  * **Russian** — Coming in the very next update!
+  * **English**
+  * **Russian**
   * 🌍 **Other Languages** — Planned based on community requests in our Discord.
 * 🖥 **In-Game GUI:** Currently in **Early Access**. Expect improvements in upcoming releases!
 * ⚡ **Co-op Focused:** Ideal for competitive survival, mini-games, and stream events.
