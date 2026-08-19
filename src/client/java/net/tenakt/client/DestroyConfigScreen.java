@@ -6,31 +6,76 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.*;
+import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Language;
 import net.tenakt.MyModInitializer;
 import net.tenakt.network.ConfigSyncPayload;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import java.util.Collections;
-import java.util.Comparator;
 
 public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
-    private List<String> activeBlocks = new ArrayList<>(MyModInitializer.CONFIG.allowedBlocks());
+    // Храним системные ID блоков, например "minecraft:grass_block"
+    private Set<String> activeBlocks = new HashSet<>();
     private FlowLayout blockListContainer;
     private TextBoxComponent searchInput;
     private boolean isShowingSearchResults = false;
-    private List<String> searchResults = new ArrayList<>();
+    private List<BlockCacheEntry> searchResults = new ArrayList<>();
+
+    // Кэш для моментального поиска без фризов
+    private final List<BlockCacheEntry> allBlocksCache = new ArrayList<>();
 
     @Override
     protected @NotNull OwoUIAdapter<FlowLayout> createAdapter() {
         return OwoUIAdapter.create(this, UIContainers::horizontalFlow);
+    }
+
+    @Override
+    protected void init() {
+        // 1. Загружаем кэш ДО создания интерфейса
+        if (allBlocksCache.isEmpty()) {
+            Language language = Language.getInstance();
+            for (Identifier id : Registries.BLOCK.getIds()) {
+                Block block = Registries.BLOCK.get(id);
+                String path = id.getPath();
+                String localized = normalizeRus(language.get(block.getTranslationKey()));
+                String voiceAlias = normalizeRus(getVoiceAlias(path));
+
+                allBlocksCache.add(new BlockCacheEntry(id, path, localized, voiceAlias));
+            }
+        }
+
+        // 2. Читаем текущий конфиг
+        activeBlocks.clear();
+        for (String s : MyModInitializer.CONFIG.allowedBlocks()) {
+            if (!s.contains(":")) {
+                String normalizedS = normalizeRus(s);
+                Optional<BlockCacheEntry> match = allBlocksCache.stream()
+                        .filter(b -> b.path.equals(normalizedS)
+                                || (b.voiceAlias != null && b.voiceAlias.equals(normalizedS))
+                                || (b.localized != null && b.localized.equals(normalizedS)))
+                        .findFirst();
+
+                if (match.isPresent()) {
+                    activeBlocks.add(match.get().id.toString());
+                } else {
+                    activeBlocks.add("minecraft:" + s);
+                }
+            } else {
+                activeBlocks.add(s);
+            }
+        }
+
+        // 3. ТОЛЬКО ТЕПЕРЬ вызываем super.init(), который запустит метод build()
+        // и отрисует список, так как activeBlocks и allBlocksCache уже заполнены
+        super.init();
     }
 
     @Override
@@ -39,7 +84,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         rootComponent.sizing(Sizing.fill(100), Sizing.fill(100));
         rootComponent.padding(Insets.of(15));
 
-        // Левая колонка
+        // --- ЛЕВАЯ КОЛОНКА ---
         var leftColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         leftColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
@@ -92,7 +137,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         levHeightInput.text(String.valueOf(MyModInitializer.CONFIG.levitationHeight()));
         leftColumn.child(createInputRow(Text.translatable("gui.chunkdestroyer.fly_height"), levHeightInput));
 
-        // Normalize activeBlocks before saving
+        // Кнопка сохранения
         var saveButton = UIComponents.button(Text.translatable("gui.chunkdestroyer.save"), button -> {
             try {
                 int newRadius = (int) radiusSlider.discreteValue();
@@ -103,19 +148,10 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
                 MyModInitializer.CONFIG.heightUp(newUpRadius);
                 MyModInitializer.CONFIG.heightDown(newDownRadius);
 
-                // Normalize stored block identifiers to canonical forms
-                List<String> normalized = new ArrayList<>();
-                for (String s : activeBlocks) {
-                    Identifier id = resolveIdFromDisplayString(s);
-                    if (id != null) {
-                        String canonical = id.getPath().replace('_', ' ');
-                        if (!normalized.contains(canonical)) normalized.add(canonical);
-                    } else if (!normalized.contains(s)) {
-                        normalized.add(s);
-                    }
-                }
+                // Сохраняем уникальные блоки напрямую
+                List<String> toSave = activeBlocks.stream().distinct().toList();
+                MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(toSave));
 
-                MyModInitializer.CONFIG.allowedBlocks(new ArrayList<>(normalized));
                 MyModInitializer.CONFIG.levitationWord(levWordInput.getText().trim().toLowerCase());
 
                 try {
@@ -126,8 +162,14 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
                 MyModInitializer.CONFIG.save();
 
-                // Важно: пересобираем grammar Vosk после изменения списка блоков
-                VoskManager.reloadRecognizer();
+                // Перезагрузка Vosk в фоне, чтобы игра не зависала
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        VoskManager.reloadRecognizer();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
 
                 if (MinecraftClient.getInstance().getNetworkHandler() != null) {
                     net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
@@ -144,7 +186,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         saveButton.sizing(Sizing.fixed(180), Sizing.fixed(20)).margins(Insets.top(30));
         leftColumn.child(saveButton);
 
-        // Правая колонка
+
+        // --- ПРАВАЯ КОЛОНКА ---
         var rightColumn = UIContainers.verticalFlow(Sizing.fill(50), Sizing.fill(100));
         rightColumn.horizontalAlignment(HorizontalAlignment.CENTER);
 
@@ -167,35 +210,29 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
 
         searchInput = UIComponents.textBox(Sizing.fill(75));
         searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
-        // Real-time search: update results as user types
+
         searchInput.setChangedListener(text -> {
             if (text.isEmpty()) {
                 searchInput.setSuggestion(Text.translatable("gui.chunkdestroyer.search_suggestion").getString());
                 isShowingSearchResults = false;
-                searchResults = new ArrayList<>();
-                refreshBlockList();
-                return;
+                searchResults.clear();
             } else {
                 searchInput.setSuggestion("");
+                isShowingSearchResults = true;
+
+                String query = normalizeRus(text);
+
+                // Моментальный поиск по кэшу
+                searchResults = allBlocksCache.stream()
+                        .filter(b -> b.matches(query))
+                        .sorted(Comparator.comparingInt(b -> b.score(query)))
+                        .collect(Collectors.toList());
             }
-
-            String query = text.trim().toLowerCase();
-            isShowingSearchResults = true;
-            searchResults = performSearch(query);
-
             refreshBlockList();
         });
 
         var searchBtn = UIComponents.button(Text.literal("🔍"), button -> {
-            String query = searchInput.getText().trim().toLowerCase();
-
-            if (query.isEmpty()) {
-                isShowingSearchResults = false;
-            } else {
-                isShowingSearchResults = true;
-                searchResults = performSearch(query);
-            }
-
+            // Кнопка поиска теперь просто триггерит то же самое, но логика уже в setChangedListener
             refreshBlockList();
         });
 
@@ -203,7 +240,7 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         searchRow.child(searchInput).child(searchBtn);
         rightColumn.child(searchRow);
 
-        // Кнопка возврата
+        // Кнопка возврата к активным
         var backToListBtn = UIComponents.button(Text.translatable("gui.chunkdestroyer.show_active"), button -> {
             isShowingSearchResults = false;
             searchInput.text("");
@@ -215,6 +252,8 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         rightColumn.child(backToListBtn);
 
         rootComponent.child(leftColumn).child(rightColumn);
+
+        // Рисуем список в первый раз
         refreshBlockList();
     }
 
@@ -231,8 +270,9 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         return row;
     }
 
+    // Здесь блок травы привязан ТОЛЬКО к grass_block
     private String getVoiceAlias(String blockPath) {
-        if (blockPath.equals("dirt")) return "блок травы";
+        if (blockPath.equals("grass_block")) return "блок травы";
         if (blockPath.equals("netherrack")) return "адский камень";
         return null;
     }
@@ -247,104 +287,19 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
         return s.toLowerCase().replace('ё', 'е').replaceAll("\\s+", " ").trim();
     }
 
-    private Identifier resolveIdFromDisplayString(String display) {
-        // Try as id path
-        String fixed = display.replace(' ', '_');
-        String idString = fixed.contains(":") ? fixed : "minecraft:" + fixed;
-        Identifier maybe = Identifier.tryParse(idString);
-        if (maybe != null && Registries.BLOCK.containsId(maybe)) return maybe;
-
-        // Try matching localized names or voice aliases
-        String lower = normalizeRus(display.toLowerCase());
-
-        // Special-case: map common user-entered Russian name 'дерн'/'дёрн' to dirt
-        if (lower.equals("дерн")) {
-            Identifier dirtId = Identifier.tryParse("minecraft:dirt");
-            if (dirtId != null && Registries.BLOCK.containsId(dirtId)) return dirtId;
-        }
-
-        for (Identifier id : Registries.BLOCK.getIds()) {
-            net.minecraft.block.Block block = Registries.BLOCK.get(id);
-            String localized = normalizeRus(net.minecraft.util.Language.getInstance().get(block.getTranslationKey()).toLowerCase());
-            String voice = getVoiceAlias(id.getPath());
-
-            if (localized.equals(lower) || (voice != null && normalizeRus(voice).equals(lower))) return id;
-
-            // allow 'дерн' matching 'дёрн' by normalized compare
-            if (localized.contains(lower) || lower.contains(localized)) return id;
-            if (voice != null && (normalizeRus(voice).contains(lower) || lower.contains(normalizeRus(voice)))) return id;
-        }
-
-        return null;
-    }
-
-    private List<String> performSearch(String query) {
-        List<Identifier> candidates = Registries.BLOCK.getIds().stream()
-                .filter(id -> {
-                    net.minecraft.block.Block block = Registries.BLOCK.get(id);
-                    String englishName = id.getPath().replace('_', ' ').toLowerCase();
-                    String localizedName = net.minecraft.util.Language.getInstance()
-                            .get(block.getTranslationKey()).toLowerCase();
-                    String voiceAlias = getVoiceAlias(id.getPath());
-                    
-                    return englishName.contains(query)
-                            || localizedName.contains(query)
-                            || id.toString().toLowerCase().contains(query)
-                            || (voiceAlias != null && voiceAlias.contains(query));
-                })
-                .distinct()
-                .collect(Collectors.toList());
-
-        Collections.sort(candidates, new Comparator<Identifier>() {
-            @Override
-            public int compare(Identifier a, Identifier b) {
-                String aPath = a.getPath().replace('_', ' ').toLowerCase();
-                String bPath = b.getPath().replace('_', ' ').toLowerCase();
-
-                String aLocalized = net.minecraft.util.Language.getInstance()
-                        .get(Registries.BLOCK.get(a).getTranslationKey()).toLowerCase();
-                String bLocalized = net.minecraft.util.Language.getInstance()
-                        .get(Registries.BLOCK.get(b).getTranslationKey()).toLowerCase();
-
-                String aVoiceAlias = getVoiceAlias(a.getPath());
-                String bVoiceAlias = getVoiceAlias(b.getPath());
-
-                int scoreA = scoreFor(aPath, aLocalized, aVoiceAlias, query, a);
-                int scoreB = scoreFor(bPath, bLocalized, bVoiceAlias, query, b);
-
-                if (scoreA != scoreB) return Integer.compare(scoreA, scoreB);
-                // Prefer shorter names then lexicographic
-                if (aPath.length() != bPath.length()) return Integer.compare(aPath.length(), bPath.length());
-                return aPath.compareTo(bPath);
-            }
-
-            private int scoreFor(String path, String localized, String voiceAlias, String q, Identifier id) {
-                if (path.equals(q) || localized.equals(q) || (voiceAlias != null && voiceAlias.equals(q)) || id.getPath().equals(q)) return 0; // exact
-                if (path.startsWith(q) || localized.startsWith(q) || (voiceAlias != null && voiceAlias.startsWith(q))) return 1; // starts with
-                if (path.contains(q) || localized.contains(q) || (voiceAlias != null && voiceAlias.contains(q)) || id.toString().toLowerCase().contains(q)) return 2; // contains
-                return 3;
-            }
-        });
-
-        return candidates.stream()
-                .map(id -> id.getPath().replace('_', ' '))
-                .distinct()
-                .collect(Collectors.toList());
-    }
-
+    // --- Отрисовка списка ---
     private void refreshBlockList() {
         if (blockListContainer == null) return;
-
         blockListContainer.clearChildren();
 
-        List<String> rawItems = isShowingSearchResults ? searchResults : activeBlocks;
-        List<String> itemsToDisplay = new ArrayList<>();
+        List<BlockCacheEntry> itemsToDisplay;
 
-        // Normalize displayed items to canonical identifiers to avoid duplicates like "дерн" + "dirt"
-        for (String s : rawItems) {
-            Identifier id = resolveIdFromDisplayString(s);
-            String canonical = id != null ? id.getPath().replace('_', ' ') : s;
-            if (!itemsToDisplay.contains(canonical)) itemsToDisplay.add(canonical);
+        if (isShowingSearchResults) {
+            itemsToDisplay = searchResults;
+        } else {
+            itemsToDisplay = allBlocksCache.stream()
+                    .filter(b -> activeBlocks.contains(b.id.toString()))
+                    .collect(Collectors.toList());
         }
 
         if (itemsToDisplay.isEmpty()) {
@@ -356,84 +311,65 @@ public class DestroyConfigScreen extends BaseOwoScreen<FlowLayout> {
             return;
         }
 
-        for (String block : itemsToDisplay) {
+        for (BlockCacheEntry entry : itemsToDisplay) {
             var row = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row.verticalAlignment(VerticalAlignment.CENTER);
             row.surface(Surface.flat(0x80000000));
             row.padding(Insets.of(3));
             row.margins(Insets.bottom(3));
 
-            // Resolve the Identifier for this displayed item. It may be an id ("dirt"),
-            // a localized name ("Дёрн"), or a voice alias ("блок травы").
-            Identifier blockId = resolveIdFromDisplayString(block);
-
-            Text displayComponent = Text.literal(block);
-
-            String canonical = null;
-            String voiceAlias = null;
-            String localizedName = null;
-
-            if (blockId != null && Registries.BLOCK.containsId(blockId)) {
-                canonical = blockId.getPath().replace('_', ' ');
-                String blockPath = blockId.getPath().toLowerCase();
-                voiceAlias = getVoiceAlias(blockPath);
-                localizedName = net.minecraft.util.Language.getInstance()
-                        .get(Registries.BLOCK.get(blockId).getTranslationKey());
-
-                if (voiceAlias != null) {
-                    displayComponent = Text.literal(capitalizeFirst(voiceAlias));
-                } else {
-                    displayComponent = Text.translatable(
-                            Registries.BLOCK.get(blockId).getTranslationKey()
-                    );
-                }
-            } else {
-                // If we couldn't resolve an id, show the raw text
-                displayComponent = Text.literal(block);
-            }
+            // Если есть voiceAlias ("блок травы"), выводим его. Иначе обычный перевод.
+            Text displayComponent = (entry.voiceAlias != null && !entry.voiceAlias.isEmpty())
+                    ? Text.literal(capitalizeFirst(entry.voiceAlias))
+                    : Text.translatable(Registries.BLOCK.get(entry.id).getTranslationKey());
 
             var label = UIComponents.label(displayComponent);
             label.sizing(Sizing.fill(75), Sizing.content());
             label.margins(Insets.left(3));
 
-            final String checkCanonical = canonical != null ? canonical : block;
-            final String checkVoice = voiceAlias != null ? voiceAlias : "";
-            final String checkLocalized = localizedName != null ? localizedName : "";
-
-            final boolean isActive = activeBlocks.stream().anyMatch(s ->
-                    s.equalsIgnoreCase(checkCanonical)
-                            || s.equalsIgnoreCase(checkVoice)
-                            || s.equalsIgnoreCase(checkLocalized)
-            );
-
-            String actionText = isShowingSearchResults
-                    ? (isActive ? "✔" : "+")
-                    : "X";
-
-            final String canonicalFinal = canonical;
-            final String blockFinal = block;
+            boolean isActive = activeBlocks.contains(entry.id.toString());
+            String actionText = isShowingSearchResults ? (isActive ? "✔" : "+") : "X";
 
             var actionBtn = UIComponents.button(Text.literal(actionText), btn -> {
                 if (isShowingSearchResults) {
-                    if (!isActive) {
-                        // Add canonical id string (e.g., "dirt") so storage is consistent
-                        if (canonicalFinal != null) activeBlocks.add(canonicalFinal);
-                        else activeBlocks.add(blockFinal);
-                        refreshBlockList();
-                    }
+                    if (!isActive) activeBlocks.add(entry.id.toString());
                 } else {
-                    // Removing: remove any matching variants
-                    activeBlocks.removeIf(s -> s.equalsIgnoreCase(checkCanonical)
-                            || s.equalsIgnoreCase(checkVoice)
-                            || s.equalsIgnoreCase(checkLocalized));
-                    refreshBlockList();
+                    activeBlocks.remove(entry.id.toString());
                 }
+                refreshBlockList(); // Моментальное обновление
             });
 
             actionBtn.sizing(Sizing.fixed(20), Sizing.fixed(20));
-
             row.child(label).child(actionBtn);
             blockListContainer.child(row);
+        }
+    }
+
+    // --- Класс для кэширования данных блока ---
+    private static class BlockCacheEntry {
+        final Identifier id;
+        final String path;
+        final String localized;
+        final String voiceAlias;
+
+        BlockCacheEntry(Identifier id, String path, String localized, String voiceAlias) {
+            this.id = id;
+            this.path = path.replace('_', ' ').toLowerCase();
+            this.localized = localized;
+            this.voiceAlias = voiceAlias;
+        }
+
+        boolean matches(String query) {
+            return path.contains(query)
+                    || (localized != null && localized.contains(query))
+                    || (voiceAlias != null && voiceAlias.contains(query))
+                    || id.toString().toLowerCase().contains(query);
+        }
+
+        int score(String query) {
+            if (path.equals(query) || (localized != null && localized.equals(query)) || (voiceAlias != null && voiceAlias.equals(query))) return 0;
+            if (path.startsWith(query) || (localized != null && localized.startsWith(query)) || (voiceAlias != null && voiceAlias.startsWith(query))) return 1;
+            return 2;
         }
     }
 }
