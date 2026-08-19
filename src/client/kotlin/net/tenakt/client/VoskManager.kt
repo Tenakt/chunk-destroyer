@@ -26,7 +26,6 @@ object VoskManager {
 
     fun init() {
         println("Initializing VoskManager...")
-        // Обязательный фикс кодировки для русских букв
         System.setProperty("jna.encoding", "UTF8")
     }
 
@@ -101,10 +100,8 @@ object VoskManager {
 
                     val ruName = cleanRuName.replace(Regex("\\s+"), " ")
 
-                    // Полное русское название блока -> Minecraft ID
                     ruToEnMap[ruName] = cleanBlockId
 
-                    // Синоним для grass block
                     if (cleanBlockId == "grass block") {
                         ruToEnMap["блок травы"] = cleanBlockId
 
@@ -112,7 +109,6 @@ object VoskManager {
                         if (!grammarList.contains("травы")) grammarList.add("травы")
                     }
 
-                    // Синоним для netherrack
                     if (cleanBlockId == "netherrack") {
                         ruToEnMap["адский камень"] = cleanBlockId
 
@@ -188,27 +184,38 @@ object VoskManager {
         if (!isInitialized || recognizer == null) return
 
         executor.submit {
-            val rec = recognizer ?: return@submit
-            val isFinal = rec.acceptWaveForm(pcmData, pcmData.size)
-            val jsonResult = if (isFinal) rec.result else rec.partialResult
+            try {
+                val rec = recognizer ?: return@submit
+                val isFinal = rec.acceptWaveForm(pcmData, pcmData.size)
+                val jsonResult = if (isFinal) rec.result else rec.partialResult
 
-            parseAndTrigger(jsonResult, onBlockRecognized)
+                if (parseAndTrigger(jsonResult, onBlockRecognized)) {
+                    rec.reset()
+                    lastRecognized = ""
+                    println("[ChunkDestroyer] Recognizer reset after command")
+                }
+            } catch (e: Exception) {
+                println("[ChunkDestroyer] Error processing audio:")
+                e.printStackTrace()
+            }
         }
     }
 
-    private fun parseAndTrigger(json: String, onBlockRecognized: (String) -> Unit) {
+    private fun parseAndTrigger(json: String, onBlockRecognized: (String) -> Unit): Boolean {
         val now = System.currentTimeMillis()
-        val textMatch = """"text"\s*:\s*"([^"]+)"""".toRegex().find(json)
-            ?: """"partial"\s*:\s*"([^"]+)"""".toRegex().find(json)
+        val textMatch = "\"text\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(json)
+            ?: "\"partial\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(json)
 
-        val text = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return
+        val text = textMatch?.groupValues?.get(1)?.trim()?.lowercase() ?: return false
 
-        if (text.isEmpty() || text == lastRecognized) return
+        if (text.isEmpty() || text == lastRecognized) return false
 
         lastRecognized = text
         println("Recognized raw text: $text")
 
-        if (now - lastSentTime < COOLDOWN_MS) return
+        if (now - lastSentTime < COOLDOWN_MS) return false
+
+        var commandTriggered = false
 
         val levWord = net.tenakt.MyModInitializer.CONFIG
             .levitationWord()
@@ -216,7 +223,6 @@ object VoskManager {
             .trim()
 
         if (net.tenakt.MyModInitializer.CONFIG.enableLevitation() && levWord.isNotEmpty()) {
-            // Trigger levitation if the recognized text equals or contains the levitation word (supports multi-word phrases)
             if (text == levWord || text.contains(levWord)) {
                 println("Levitation word detected: $text")
                 lastSentTime = now
@@ -227,11 +233,10 @@ object VoskManager {
                     net.tenakt.network.VoiceLevitationPayload(height)
                 )
 
-                // Continue processing — allow block detection to run so both levitation and destruction can occur together
+                commandTriggered = true
             }
         }
 
-        // 1. Идеальное совпадение всей фразы
         val translatedFullText = if (isRussian) ruToEnMap[text] ?: text else text
         val fullId = translatedFullText.replace(" ", "_")
 
@@ -239,10 +244,9 @@ object VoskManager {
             println("Block found (Full phrase): $fullId")
             lastSentTime = now
             onBlockRecognized(fullId)
-            return
+            return true
         }
 
-        // 2. Ищем многословный блок ВНУТРИ текста
         if (isRussian) {
             for ((ruName, enName) in ruToEnMap) {
                 if (ruName.contains(" ") && text.contains(ruName)) {
@@ -252,13 +256,12 @@ object VoskManager {
                         println("Block found (Phrase in text): $phraseId")
                         lastSentTime = now
                         onBlockRecognized(phraseId)
-                        return
+                        return true
                     }
                 }
             }
         }
 
-        // 3. Если фраза целиком не найдена, разбиваем на отдельные слова
         val words = text.split(" ")
 
         for (word in words) {
@@ -273,9 +276,12 @@ object VoskManager {
                 println("Block found (Word): $cleanWord")
                 lastSentTime = now
                 onBlockRecognized(cleanWord)
+                commandTriggered = true
                 break
             }
         }
+
+        return commandTriggered
     }
 
     private fun checkBlock(name: String): Boolean {
