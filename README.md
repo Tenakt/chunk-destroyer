@@ -50,7 +50,7 @@ Make sure you have the following mods installed:
 - [✅] 🇷🇺 Russian language support for voice recognition
 - [✅] 🎨 Complete and polish the In-Game GUI (Currently in Early Access)
 - [ ] 🌍 More voice language options (based on Discord feedback)
-- [ ] ⚙️ Additional customization settings for block destruction radius and effects
+- [ ] ⚙️ ~~Additional customization settings for block destruction radius and effects~~
 
 ---
 
